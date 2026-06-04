@@ -388,6 +388,20 @@ function connectRoom(){
   channel.on('broadcast',{event:'join'},({payload})=>{
     // optional: could track joins; harmless to ignore
   });
+  channel.on('broadcast',{event:'wager'},({payload})=>{
+    if(!payload||!payload.team) return;
+    const tm=teams.find(t=>t.name===payload.team);
+    if(!tm) return;
+    const cap=Math.max(0,tm.score);
+    let amt=parseInt(payload.amount,10);
+    if(isNaN(amt)) return;
+    amt=Math.max(0,Math.min(cap,amt));
+    fjWagers[payload.team]=amt;
+    if(typeof fjFromPhone==='object') fjFromPhone[payload.team]=true;
+    if(overlay.classList.contains('show') && activeCell && activeCell.isFinal && !fjRevealed){
+      renderFinalScore();
+    }
+  });
 
   channel.subscribe(status=>{
     if(status==='SUBSCRIBED'){ statusDot.classList.add('on'); broadcastState(); }
@@ -395,11 +409,14 @@ function connectRoom(){
   });
 }
 
-// Tell players the current team list + armed state so their phones stay in sync
+// Tell players the current team list + armed state + scores so their phones stay in sync
+let fjBroadcastFinal=false;
+let fjFromPhone={};
 function broadcastState(){
   if(!channel) return;
+  const scores={}; teams.forEach(t=>{scores[t.name]=t.score;});
   channel.send({type:'broadcast', event:'state', payload:{
-    teams: teams.map(t=>t.name), armed
+    teams: teams.map(t=>t.name), armed, final:fjBroadcastFinal, scores
   }});
 }
 
@@ -656,7 +673,7 @@ function openFinal(){
   if(fj.used&&!editMode){ if(!confirm('Final Jeopardy was already played. Open it again?'))return; }
   activeCell={isFinal:true};
   activeValue=0; scoredTeams=[];
-  fjWagers={}; fjRevealed=false; fjScored=[];
+  fjWagers={}; fjRevealed=false; fjScored=[]; fjFromPhone={};
   mValue.textContent='★ FINAL JEOPARDY';
   mQ.textContent=fj.question; mA.textContent=fj.answer;
   clueScoreEl.style.display='none';
@@ -672,6 +689,7 @@ function openFinal(){
     mQ.style.display='none'; mA.style.display='none';
     document.getElementById('revealBtn').style.display='none';
     playSelect();
+    fjBroadcastFinal=true; broadcastState();
     renderFinalScore();
   }
   overlay.classList.add('show');
@@ -697,7 +715,8 @@ function renderFinalScore(){
     const logo=tm.logo?`<img class="fj-logo" src="${tm.logo}" alt="">`:'';
     const row=document.createElement('div');row.className='fj-row'+(fjScored.includes(tm.name)?' done':'');
     if(!fjRevealed){
-      row.innerHTML=`${logo}<span class="fj-name">${tm.name.replace(/</g,'&lt;')}</span>
+      const fromPhone=fjFromPhone[tm.name]?' <span style="color:#4caf50;font-size:11px;">📱 locked</span>':'';
+      row.innerHTML=`${logo}<span class="fj-name">${tm.name.replace(/</g,'&lt;')}${fromPhone}</span>
         <span class="fj-have">max $${cap}</span>
         <input class="fj-wager" type="number" min="0" max="${cap}" placeholder="$" inputmode="numeric">`;
       const inp=row.querySelector('.fj-wager');
@@ -706,7 +725,7 @@ function renderFinalScore(){
         const v=parseInt(inp.value,10);
         if(isNaN(v)){ delete fjWagers[tm.name]; inp.classList.remove('bad'); }
         else if(v<0||v>cap){ inp.classList.add('bad'); delete fjWagers[tm.name]; }
-        else { inp.classList.remove('bad'); fjWagers[tm.name]=v; }
+        else { inp.classList.remove('bad'); fjWagers[tm.name]=v; fjFromPhone[tm.name]=false; }
         updateFjReveal();
       });
     }else{
@@ -739,6 +758,7 @@ function updateFjReveal(){
 function revealFinal(){
   if(!fjAllWagersValid()) return;
   fjRevealed=true;
+  fjBroadcastFinal=false; broadcastState();
   mQ.style.display='flex';
   mA.style.display='none';
   document.getElementById('revealBtn').style.display='inline-flex';
@@ -803,7 +823,14 @@ function scoreTeam(teamName,correct){
   if(!tm) return;
   if(correct){
     tm.score+=activeValue; popScore(teamName); renderScores(); saveState(); playRight();
-    closeModal(true);
+    mA.style.display='flex'; playReveal();        // show the answer on screen
+    if(activeCell && !activeCell.isFinal && activeCell.tileEl){
+      data.categories[activeCell.ci].cells[activeCell.ri].used=true;
+      activeCell.tileEl.classList.add('used'); saveState();
+    }
+    scoredTeams.push(teamName);
+    disarmBuzzers();                               // round over; close when ready
+    renderClueScore();
   }else{
     tm.score-=activeValue; popScore(teamName); renderScores(); saveState(); playWrong();
     scoredTeams.push(teamName);
@@ -819,7 +846,8 @@ function closeModal(markUsed){
   }
   overlay.classList.remove('show');activeCell=null;
   activeValue=0; scoredTeams=[];
-  fjWagers={}; fjRevealed=false; fjScored=[];
+  fjWagers={}; fjRevealed=false; fjScored=[]; fjFromPhone={};
+  if(fjBroadcastFinal){ fjBroadcastFinal=false; broadcastState(); }
   if(finalScoreEl) finalScoreEl.style.display='none';
   disarmBuzzers();
 }

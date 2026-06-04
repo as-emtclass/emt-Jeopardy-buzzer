@@ -52,6 +52,18 @@
   .conn .dot.on{background:#4caf50;}
   .err{background:#5a1a1a;border:1px solid #a33;border-radius:8px;padding:10px;font-size:13px;margin-top:14px;display:none;}
   .changeteam{background:none;border:none;color:#9fb0ff;text-decoration:underline;font-size:12px;cursor:pointer;margin-top:14px;}
+
+  /* Final Jeopardy wager screen */
+  .wager-card{margin-top:10px;}
+  .wager-have{font-size:14px;letter-spacing:1px;color:#9fb0ff;margin-bottom:4px;}
+  .wager-have b{color:var(--jep-gold-bright);font-family:'Anton';font-size:22px;}
+  input[type=number]{width:100%;padding:14px;border-radius:8px;border:2px solid var(--jep-gold);background:#02063a;color:var(--jep-gold-bright);
+    font-family:'Anton';font-size:30px;letter-spacing:2px;text-align:center;outline:none;-moz-appearance:textfield;}
+  input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  input[type=number].bad{border-color:#ff7b7b;color:#ff7b7b;}
+  .wager-note{font-size:12px;color:#9fb0ff;margin-top:8px;min-height:16px;}
+  .wager-locked{font-family:'Anton';font-size:30px;color:#4caf50;margin-top:14px;}
+  .wager-locked small{display:block;font-family:'Oswald';font-size:13px;letter-spacing:2px;color:#9fb0ff;text-transform:uppercase;margin-top:4px;}
 </style>
 </head>
 <body>
@@ -82,7 +94,20 @@
   <div class="state" id="buzzState">Waiting for host…</div>
   <div class="rankmsg" id="rankMsg"></div>
   <div class="conn" id="conn"><span class="dot" id="connDot"></span><span id="connTxt">connecting…</span></div>
-  <button class="changeteam" id="changeTeam">← change team</button>
+</div>
+
+<!-- Screen 4: Final Jeopardy wager -->
+<div class="screen" id="screenWager">
+  <div class="joinedas">Final Jeopardy for <b id="myTeamW">—</b></div>
+  <div class="wager-card" id="wagerEntry">
+    <div class="wager-have">Your score: <b id="wagerHave">$0</b></div>
+    <label>Your wager</label>
+    <input type="number" id="wagerInput" min="0" placeholder="0" inputmode="numeric">
+    <div class="wager-note" id="wagerNote">You can wager up to your score.</div>
+    <button class="btn" id="wagerLock">Lock In Wager</button>
+  </div>
+  <div class="wager-locked" id="wagerDone" style="display:none;">✓ Locked: <span id="wagerDoneAmt">$0</span><small>Wait for the clue on the host screen</small></div>
+  <div class="conn" id="connW"><span class="dot" id="connDotW"></span><span id="connTxtW">connecting…</span></div>
 </div>
 
 <script>
@@ -90,9 +115,10 @@ const configured=(typeof SUPABASE_URL!=='undefined'&&SUPABASE_URL&&!SUPABASE_URL
   typeof SUPABASE_ANON_KEY!=='undefined'&&SUPABASE_ANON_KEY&&!SUPABASE_ANON_KEY.includes('YOUR_'));
 
 let supa=null, channel=null, ROOM=null, myTeam=null, armed=false, hasBuzzed=false, teamList=[];
+let finalMode=false, myScore=0, wagerLocked=false, teamScores={};
 
 const $=id=>document.getElementById(id);
-function show(screen){['screenCode','screenTeam','screenBuzz'].forEach(s=>$(s).classList.toggle('active',s===screen));}
+function show(screen){['screenCode','screenTeam','screenBuzz','screenWager'].forEach(s=>$(s).classList.toggle('active',s===screen));}
 
 /* simple click sound */
 let actx=null;function ac(){if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();return actx;}
@@ -119,9 +145,23 @@ function connect(){
 
   channel.on('broadcast',{event:'state'},({payload})=>{
     teamList=payload.teams||[];
+    teamScores=payload.scores||{};
     renderTeams();
     const wasArmed=armed; armed=!!payload.armed;
-    if(myTeam){ updateBuzzUI(); if(armed&&!wasArmed){hasBuzzed=false;updateBuzzUI();} }
+    const wasFinal=finalMode; finalMode=!!payload.final;
+    if(myTeam){
+      myScore=(myTeam in teamScores)?teamScores[myTeam]:myScore;
+      if(finalMode){
+        // entering Final Jeopardy wager mode
+        if(!wasFinal){ wagerLocked=false; }
+        routeFinal();
+      }else{
+        if(wasFinal){ wagerLocked=false; }  // host closed Final Jeopardy
+        updateBuzzUI();
+        if(armed&&!wasArmed){hasBuzzed=false;updateBuzzUI();}
+        if($('screenWager').classList.contains('active')) show('screenBuzz');
+      }
+    }
     setConn(true);
   });
 
@@ -134,22 +174,33 @@ function connect(){
 function teardown(){ if(channel){supa.removeChannel(channel);channel=null;} myTeam=null; }
 
 function setConn(on){
-  ['teamDot','connDot'].forEach(d=>$(d).classList.toggle('on',on));
+  ['teamDot','connDot','connDotW'].forEach(d=>{const el=$(d);if(el)el.classList.toggle('on',on);});
   $('teamConnTxt').textContent=on?'connected — pick a team':'connecting…';
   $('connTxt').textContent=on?'connected':'reconnecting…';
+  const w=$('connTxtW');if(w)w.textContent=on?'connected':'reconnecting…';
 }
 
 /* Screen 2: teams */
 function renderTeams(){
   const g=$('teamGrid');g.innerHTML='';
+  if(myTeam){ // already locked to a team — don't allow re-pick
+    g.innerHTML='<div style="grid-column:1/3;color:#9fb0ff;font-size:14px;">You\u2019re locked in as <b style="color:var(--jep-gold-bright)">'+myTeam.replace(/</g,'&lt;')+'</b></div>';
+    return;
+  }
   if(!teamList.length){g.innerHTML='<div style="grid-column:1/3;color:#9fb0ff;font-size:14px;">Waiting for host to set up teams…</div>';return;}
   teamList.forEach(name=>{
     const b=document.createElement('button');b.textContent=name;
-    b.onclick=()=>{myTeam=name;$('myTeam').textContent=name;tick(800);show('screenBuzz');updateBuzzUI();};
+    b.onclick=()=>{
+      myTeam=name;
+      $('myTeam').textContent=name;
+      $('myTeamW').textContent=name;
+      myScore=(name in teamScores)?teamScores[name]:0;
+      tick(800);
+      if(finalMode){ routeFinal(); } else { show('screenBuzz'); updateBuzzUI(); }
+    };
     g.appendChild(b);
   });
 }
-$('changeTeam').onclick=()=>{show('screenTeam');};
 
 /* Screen 3: buzz */
 const buzzBtn=$('buzzBtn');
@@ -172,6 +223,41 @@ function updateBuzzUI(){
     $('buzzState').textContent='Waiting for host…';$('buzzState').className='state';$('rankMsg').textContent='';
   }
 }
+
+/* Screen 4: Final Jeopardy wager */
+function routeFinal(){
+  show('screenWager');
+  const cap=Math.max(0,myScore);
+  $('wagerHave').textContent='$'+myScore;
+  $('wagerInput').max=cap;
+  $('wagerNote').textContent='You can wager $0 up to $'+cap+'.';
+  if(wagerLocked){
+    $('wagerEntry').style.display='none';
+    $('wagerDone').style.display='block';
+  }else{
+    $('wagerEntry').style.display='block';
+    $('wagerDone').style.display='none';
+  }
+}
+$('wagerInput').addEventListener('input',()=>{
+  const cap=Math.max(0,myScore);
+  const v=parseInt($('wagerInput').value,10);
+  if(isNaN(v)){ $('wagerInput').classList.remove('bad'); $('wagerNote').textContent='You can wager $0 up to $'+cap+'.'; }
+  else if(v<0||v>cap){ $('wagerInput').classList.add('bad'); $('wagerNote').textContent='Too high — max is $'+cap+'.'; }
+  else { $('wagerInput').classList.remove('bad'); $('wagerNote').textContent='You can wager $0 up to $'+cap+'.'; }
+});
+$('wagerLock').onclick=()=>{
+  const cap=Math.max(0,myScore);
+  const v=parseInt($('wagerInput').value,10);
+  if(isNaN(v)||v<0||v>cap){ $('wagerInput').classList.add('bad'); $('wagerNote').textContent='Enter $0 to $'+cap+' to lock in.'; return; }
+  if(!channel) return;
+  wagerLocked=true;
+  channel.send({type:'broadcast',event:'wager',payload:{team:myTeam,amount:v}});
+  tick(800);
+  $('wagerDoneAmt').textContent='$'+v;
+  $('wagerEntry').style.display='none';
+  $('wagerDone').style.display='block';
+};
 </script>
 </body>
 </html>

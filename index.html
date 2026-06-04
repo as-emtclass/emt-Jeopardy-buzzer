@@ -606,6 +606,19 @@ function renderBoard(){
       boardEl.appendChild(t);
     });
   });
+  updateFinalAvailability();
+}
+
+// Final Jeopardy only unlocks once every clue has been played (or while editing)
+function boardAllUsed(){
+  return data.categories.every(c=>c.cells.every(x=>x.used));
+}
+function updateFinalAvailability(){
+  const show = editMode || boardAllUsed();
+  const fb=document.getElementById('finalJBtn');
+  const pb=document.getElementById('presentFinalBtn');
+  if(fb) fb.style.display = show ? '' : 'none';
+  if(pb) pb.style.display = show ? '' : 'none';
 }
 
 /* ===== MODAL ===== */
@@ -814,6 +827,7 @@ function scoreTeam(teamName,correct){
     if(activeCell && !activeCell.isFinal && activeCell.tileEl){
       data.categories[activeCell.ci].cells[activeCell.ri].used=true;
       activeCell.tileEl.classList.add('used'); saveState();
+      updateFinalAvailability();
     }
     scoredTeams.push(teamName);
     disarmBuzzers();                               // round is over; close when ready
@@ -830,6 +844,7 @@ function closeModal(markUsed){
     if(activeCell.isFinal){ data.finalJ.used=true; }
     else{ data.categories[activeCell.ci].cells[activeCell.ri].used=true; activeCell.tileEl.classList.add('used'); }
     saveState();
+    updateFinalAvailability();
   }
   overlay.classList.remove('show');activeCell=null;
   activeValue=0; scoredTeams=[];
@@ -977,7 +992,7 @@ function updatePresentSubtitle(){
   const el=document.getElementById('presentSubtitle');
   if(el) el.textContent=currentBankLabel||'';
 }
-function enterPresent(){ updatePresentSubtitle(); document.body.classList.add('present-mode'); renderPresentStrip(); window.scrollTo(0,0); }
+function enterPresent(){ updatePresentSubtitle(); document.body.classList.add('present-mode'); renderPresentStrip(); updateFinalAvailability(); window.scrollTo(0,0); }
 function exitPresent(){ document.body.classList.remove('present-mode'); }
 document.getElementById('presentBtn').onclick=enterPresent;
 document.getElementById('exitPresent').onclick=exitPresent;

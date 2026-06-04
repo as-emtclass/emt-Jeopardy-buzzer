@@ -247,11 +247,25 @@
   body.present-mode .present-strip .padj .pminus{background:linear-gradient(180deg,#a83340,#7a2230);}
   body.present-mode.logos-off .present-strip .plogo{display:none;}
 
-  body.present-mode .present-final{display:block;position:fixed;bottom:8px;left:50%;transform:translateX(-50%);
-    z-index:40;max-width:240px;background:linear-gradient(180deg,#8e2bc4,#5e1799);color:#fff;
-    border:1px solid var(--jep-gold);box-shadow:0 3px 12px rgba(94,23,153,.55),inset 0 1px 0 rgba(255,255,255,.25);
-    font-size:12px;padding:7px 16px;opacity:.92;}
-  body.present-mode .present-final:hover{opacity:1;filter:brightness(1.1);}
+  /* Final Jeopardy finale plate (present mode) */
+  .present-final-plate{display:none;}
+  body.present-mode .present-final-plate{display:flex;flex-direction:column;align-items:center;gap:12px;
+    position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:40;
+    padding:20px 34px;border-radius:16px;border:3px solid var(--jep-gold);
+    background:radial-gradient(ellipse 140% 130% at 50% 0%,#221149 0%,#140a30 70%,#0a0620 100%);
+    box-shadow:0 0 0 1px rgba(0,0,0,.5),0 18px 50px rgba(0,0,0,.6),0 0 50px rgba(142,43,196,.5),inset 0 1px 0 rgba(255,255,255,.14);
+    animation:plateIn .35s cubic-bezier(.2,.9,.3,1.1);}
+  @keyframes plateIn{from{transform:translateX(-50%) translateY(14px);opacity:0;}to{transform:translateX(-50%) translateY(0);opacity:1;}}
+  body.present-mode .present-final-plate .pf-caption{font-family:'Saira Condensed','Oswald',sans-serif;font-weight:700;
+    font-size:clamp(15px,1.8vw,22px);letter-spacing:2px;text-transform:uppercase;color:var(--jep-gold-bright);
+    text-shadow:0 2px 0 rgba(0,0,0,.6);text-align:center;}
+  body.present-mode .present-final{display:block;position:static;transform:none;max-width:none;
+    background:linear-gradient(180deg,#a23bdc,#6a1bb0);color:#fff;border:2px solid var(--jep-gold);
+    box-shadow:0 4px 16px rgba(94,23,153,.6),inset 0 1px 0 rgba(255,255,255,.3);
+    font-family:'Anton',sans-serif;letter-spacing:1px;font-size:clamp(20px,2.6vw,34px);padding:14px 40px;border-radius:12px;
+    text-shadow:0 2px 0 rgba(0,0,0,.45);}
+  body.present-mode .present-final:hover{filter:brightness(1.12);transform:translateY(-2px);
+    box-shadow:0 8px 24px rgba(94,23,153,.7),0 0 24px rgba(247,211,107,.35),inset 0 1px 0 rgba(255,255,255,.4);}
 </style>
 </head>
 <body>
@@ -337,7 +351,10 @@
 
 <div class="scores" id="scores"></div>
 
-<button class="btn present-final" id="presentFinalBtn">★ Final Jeopardy</button>
+<div class="present-final-plate" id="presentFinalPlate">
+  <div class="pf-caption">Board complete — time for Final Jeopardy!</div>
+  <button class="btn present-final" id="presentFinalBtn">★ Final Jeopardy</button>
+</div>
 
 <div class="hint">Click a dollar value to show a clue (this auto-arms the buzzers). Click a team's logo box to upload a logo. Your game auto-saves on this computer and survives refreshes/closing — it only clears when you click <b>New Quarter / Clear All</b>.</div>
 
@@ -658,9 +675,9 @@ function boardAllUsed(){
 function updateFinalAvailability(){
   const show = editMode || boardAllUsed();
   const fb=document.getElementById('finalJBtn');
-  const pb=document.getElementById('presentFinalBtn');
+  const pp=document.getElementById('presentFinalPlate');
   if(fb) fb.style.display = show ? '' : 'none';
-  if(pb) pb.style.display = show ? '' : 'none';
+  if(pp) pp.style.display = show ? '' : 'none';
 }
 
 /* ===== MODAL ===== */

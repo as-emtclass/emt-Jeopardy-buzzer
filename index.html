@@ -47,6 +47,10 @@
   .btn.secondary{background:linear-gradient(180deg,#2b3fc7,#16259e);color:#fff;box-shadow:0 2px 5px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.18);}
   .btn.secondary:hover{filter:brightness(1.12);}
   .btn.danger{background:linear-gradient(180deg,#c4444f,#992d34);color:#fff;}
+  .btn.final{background:linear-gradient(180deg,#8e2bc4,#5e1799);color:#fff;
+    border:1px solid var(--jep-gold);box-shadow:0 3px 10px rgba(94,23,153,.5),inset 0 1px 0 rgba(255,255,255,.25);
+    text-shadow:0 1px 2px rgba(0,0,0,.5);}
+  .btn.final:hover{filter:brightness(1.12);box-shadow:0 5px 16px rgba(94,23,153,.6),0 0 16px rgba(247,211,107,.3),inset 0 1px 0 rgba(255,255,255,.35);}
   .btn.big{font-size:16px;padding:12px 18px;width:100%;}
 
   .board{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;background:#01030f;padding:8px;border-radius:10px;
@@ -136,6 +140,23 @@
   .clue-score .cs-wrong{background:#7a2230;color:#fff;}
   .clue-score .cs-wrong:hover{background:#a33;}
   .clue-score .cs-empty{color:#9fb0ff;font-family:'Oswald';font-size:14px;text-align:center;padding:4px;}
+
+  /* Final Jeopardy wager + scoring */
+  .final-score{margin-top:16px;display:flex;flex-direction:column;gap:7px;}
+  .final-score .fj-head{font-family:'Oswald';font-weight:600;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#a9b8ff;margin-bottom:2px;}
+  .final-score .fj-row{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.28);border:1px solid #2b3fc7;border-radius:8px;padding:7px 10px;}
+  .final-score .fj-row.done{opacity:.5;}
+  .final-score .fj-logo{width:26px;height:26px;border-radius:5px;object-fit:cover;background:#02063a;border:1px solid #2b3fc7;flex-shrink:0;}
+  .final-score .fj-name{flex:1;font-family:'Oswald';font-weight:600;font-size:15px;text-align:left;text-transform:uppercase;letter-spacing:.5px;min-width:0;}
+  .final-score .fj-have{font-family:'Oswald';font-size:12px;color:#9fb0ff;white-space:nowrap;}
+  .final-score .fj-wager{width:96px;font-family:'Anton';font-size:18px;text-align:center;background:#02063a;color:var(--jep-gold-bright);
+    border:1px solid var(--jep-gold);border-radius:6px;padding:4px;outline:none;}
+  .final-score .fj-wager:focus{border-color:var(--jep-gold-bright);box-shadow:0 0 8px rgba(247,211,107,.4);}
+  .final-score .fj-wager.bad{border-color:#ff7b7b;color:#ff7b7b;}
+  .final-score .fj-bet{font-family:'Anton';font-size:18px;color:var(--jep-gold-bright);min-width:80px;text-align:right;white-space:nowrap;}
+  .final-score .fj-btn{font-family:'Oswald';font-weight:700;font-size:14px;border:none;border-radius:6px;padding:7px 12px;cursor:pointer;color:#fff;}
+  .final-score .fj-right{background:#1f7a3a;}.final-score .fj-right:hover{background:#27a04c;}
+  .final-score .fj-wrong{background:#7a2230;}.final-score .fj-wrong:hover{background:#a33;}
   .editnote{position:absolute;top:10px;left:14px;font-size:11px;color:#9fb0ff;letter-spacing:1px;}
   .closeX{position:absolute;top:8px;right:14px;background:none;border:none;color:#fff;font-size:24px;cursor:pointer;}
   .hint{text-align:center;color:#7c8bd0;font-size:12px;letter-spacing:1px;margin-top:22px;}
@@ -220,8 +241,10 @@
   body.present-mode.logos-off .present-strip .plogo{display:none;}
 
   body.present-mode .present-final{display:block;position:fixed;bottom:8px;left:50%;transform:translateX(-50%);
-    z-index:40;max-width:240px;background:#7a1fa2;color:#fff;font-size:12px;padding:6px 14px;opacity:.85;}
-  body.present-mode .present-final:hover{opacity:1;}
+    z-index:40;max-width:240px;background:linear-gradient(180deg,#8e2bc4,#5e1799);color:#fff;
+    border:1px solid var(--jep-gold);box-shadow:0 3px 12px rgba(94,23,153,.55),inset 0 1px 0 rgba(255,255,255,.25);
+    font-size:12px;padding:7px 16px;opacity:.92;}
+  body.present-mode .present-final:hover{opacity:1;filter:brightness(1.1);}
 </style>
 </head>
 <body>
@@ -268,7 +291,7 @@
 <div class="layout">
   <div class="board-wrap">
     <div class="board" id="board"></div>
-    <button class="btn big" id="finalJBtn" style="margin-top:10px;background:#7a1fa2;color:#fff;">★ Final Jeopardy</button>
+    <button class="btn big final" id="finalJBtn" style="margin-top:10px;">★ Final Jeopardy</button>
   </div>
 
   <div class="panel">
@@ -310,6 +333,7 @@
     <div class="label">Answer</div>
     <div class="content" id="mAnswer" style="font-size:clamp(16px,2.6vw,26px);color:var(--jep-gold-bright);">Answer text…</div>
     <div class="clue-score" id="clueScore"></div>
+    <div class="final-score" id="finalScore" style="display:none;"></div>
     <div class="controls">
       <button class="btn" id="revealBtn">Reveal Answer</button>
       <button class="btn secondary" id="markDone">Close &amp; Mark Used</button>
@@ -549,6 +573,7 @@ function renderBoard(){
 const overlay=document.getElementById('overlay'),mValue=document.getElementById('mValue'),
   mQ=document.getElementById('mQuestion'),mA=document.getElementById('mAnswer'),editnote=document.getElementById('editnote'),
   clueScoreEl=document.getElementById('clueScore');
+const finalScoreEl=document.getElementById('finalScore');
 let activeValue=0;          // dollar value of the open clue
 let popTeamName=null;       // team whose score just changed (for pop animation)
 function popScore(name){ popTeamName=name; setTimeout(()=>{popTeamName=null;},500); }
@@ -559,6 +584,11 @@ function openClue(ci,ri,tileEl){
   if(cell.used&&!editMode)return;
   activeCell={ci,ri,tileEl};
   activeValue=VALUES[ri]; scoredTeams=[];
+  // reset Final Jeopardy panel (in case it was used before)
+  finalScoreEl.style.display='none';
+  clueScoreEl.style.display='flex';
+  mQ.style.display='flex';
+  document.getElementById('revealBtn').style.display='inline-flex';
   mValue.textContent='$'+VALUES[ri];mQ.textContent=cell.question;mA.textContent=cell.answer;
   mA.style.display=editMode?'flex':'none';
   if(editMode){editnote.style.display='block';mQ.contentEditable=true;mA.contentEditable=true;
@@ -575,23 +605,120 @@ document.getElementById('markDone').onclick=()=>closeModal(true);
 document.getElementById('closeX').onclick=()=>closeModal(false);
 overlay.addEventListener('click',e=>{if(e.target===overlay)closeModal(false);});
 
-// Final Jeopardy uses the same modal
+// Final Jeopardy uses the same modal, but with wager flow (no buzzers)
+let fjWagers={};      // team name -> wager number
+let fjRevealed=false; // has the clue been revealed (wagers locked)
+let fjScored=[];      // teams already judged
 function openFinal(){
   const fj=data.finalJ;
   if(fj.used&&!editMode){ if(!confirm('Final Jeopardy was already played. Open it again?'))return; }
   activeCell={isFinal:true};
-  activeValue=0; scoredTeams=[];   // Final Jeopardy: no fixed value, score manually
+  activeValue=0; scoredTeams=[];
+  fjWagers={}; fjRevealed=false; fjScored=[];
   mValue.textContent='★ FINAL JEOPARDY';
   mQ.textContent=fj.question; mA.textContent=fj.answer;
-  mA.style.display=editMode?'flex':'none';
-  if(editMode){editnote.style.display='block';mQ.contentEditable=true;mA.contentEditable=true;
-    mQ.oninput=()=>{fj.question=mQ.textContent;saveState();};mA.oninput=()=>{fj.answer=mA.textContent;saveState();};}
-  else{editnote.style.display='none';mQ.contentEditable=false;mA.contentEditable=false;
-    playSelect();setTimeout(playThemeIntro,150);armBuzzers();}
-  renderClueScore();
+  clueScoreEl.style.display='none';
+  if(editMode){
+    // Editing: just show question + answer, no wager flow
+    finalScoreEl.style.display='none';
+    mQ.style.display='flex'; mA.style.display='flex';
+    editnote.style.display='block';mQ.contentEditable=true;mA.contentEditable=true;
+    mQ.oninput=()=>{fj.question=mQ.textContent;saveState();};mA.oninput=()=>{fj.answer=mA.textContent;saveState();};
+    document.getElementById('revealBtn').style.display='none';
+  }else{
+    editnote.style.display='none';mQ.contentEditable=false;mA.contentEditable=false;
+    finalScoreEl.style.display='flex';
+    // clue + answer hidden until wagers locked
+    mQ.style.display='none'; mA.style.display='none';
+    document.getElementById('revealBtn').style.display='none'; // reveal handled inside panel
+    playSelect();
+    renderFinalScore();
+  }
   overlay.classList.add('show');
 }
 document.getElementById('finalJBtn').onclick=openFinal;
+
+function fjAllWagersValid(){
+  if(!teams.length) return false;
+  return teams.every(t=>{
+    const w=fjWagers[t.name];
+    return typeof w==='number' && !isNaN(w) && w>=0 && w<=Math.max(0,t.score);
+  });
+}
+
+function renderFinalScore(){
+  if(!finalScoreEl) return;
+  finalScoreEl.innerHTML='';
+  // Header
+  const head=document.createElement('div');head.className='fj-head';
+  head.textContent=fjRevealed?'Mark each team right or wrong:':'Enter each team’s wager (hidden clue until all are in):';
+  finalScoreEl.appendChild(head);
+
+  teams.forEach(tm=>{
+    const cap=Math.max(0,tm.score);
+    const logo=tm.logo?`<img class="fj-logo" src="${tm.logo}" alt="">`:'';
+    const row=document.createElement('div');row.className='fj-row'+(fjScored.includes(tm.name)?' done':'');
+    if(!fjRevealed){
+      row.innerHTML=`${logo}<span class="fj-name">${tm.name.replace(/</g,'&lt;')}</span>
+        <span class="fj-have">max $${cap}</span>
+        <input class="fj-wager" type="number" min="0" max="${cap}" placeholder="$" inputmode="numeric">`;
+      const inp=row.querySelector('.fj-wager');
+      if(typeof fjWagers[tm.name]==='number') inp.value=fjWagers[tm.name];
+      inp.addEventListener('input',()=>{
+        const v=parseInt(inp.value,10);
+        if(isNaN(v)){ delete fjWagers[tm.name]; inp.classList.remove('bad'); }
+        else if(v<0||v>cap){ inp.classList.add('bad'); delete fjWagers[tm.name]; }
+        else { inp.classList.remove('bad'); fjWagers[tm.name]=v; }
+        updateFjReveal();
+      });
+    }else{
+      const bet=fjWagers[tm.name]||0;
+      row.innerHTML=`${logo}<span class="fj-name">${tm.name.replace(/</g,'&lt;')}</span>
+        <span class="fj-bet">$${bet}</span>
+        <button class="fj-btn fj-right">✓ +$${bet}</button>
+        <button class="fj-btn fj-wrong">✗ −$${bet}</button>`;
+      row.querySelector('.fj-right').onclick=()=>scoreFinal(tm.name,true);
+      row.querySelector('.fj-wrong').onclick=()=>scoreFinal(tm.name,false);
+    }
+    finalScoreEl.appendChild(row);
+  });
+
+  if(!fjRevealed){
+    const btn=document.createElement('button');btn.className='btn';btn.id='fjReveal';
+    btn.textContent='Reveal Clue';btn.style.marginTop='6px';
+    btn.disabled=!fjAllWagersValid();
+    btn.style.opacity=btn.disabled?'.5':'1';
+    btn.onclick=revealFinal;
+    finalScoreEl.appendChild(btn);
+  }
+}
+
+function updateFjReveal(){
+  const btn=document.getElementById('fjReveal');
+  if(btn){ btn.disabled=!fjAllWagersValid(); btn.style.opacity=btn.disabled?'.5':'1'; }
+}
+
+function revealFinal(){
+  if(!fjAllWagersValid()) return;
+  fjRevealed=true;
+  mQ.style.display='flex';            // show clue
+  mA.style.display='none';            // answer still hidden until "Reveal Answer"
+  document.getElementById('revealBtn').style.display='inline-flex';
+  playThemeIntro();
+  renderFinalScore();
+}
+
+function scoreFinal(teamName,correct){
+  const tm=teams.find(t=>t.name===teamName);
+  if(!tm||fjScored.includes(teamName)) return;
+  const bet=fjWagers[teamName]||0;
+  tm.score+=correct?bet:-bet;
+  popScore(teamName);
+  fjScored.push(teamName);
+  correct?playRight():playWrong();
+  renderScores(); saveState();
+  renderFinalScore();
+}
 
 // Build the ✓/✗ scoring rows from buzz order (teams not yet judged this clue)
 function renderClueScore(){
@@ -656,6 +783,8 @@ function closeModal(markUsed){
   }
   overlay.classList.remove('show');activeCell=null;
   activeValue=0; scoredTeams=[];
+  fjWagers={}; fjRevealed=false; fjScored=[];
+  if(finalScoreEl) finalScoreEl.style.display='none';
   disarmBuzzers();
 }
 

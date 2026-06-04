@@ -146,6 +146,46 @@
   .qr-url{font-family:'Oswald';color:#3a4ba0;font-size:14px;margin-top:14px;word-break:break-all;}
   .qr-code{font-family:'Oswald';color:#02063a;font-size:20px;margin-top:14px;letter-spacing:1px;}
   .qr-code b{font-family:'Anton';font-size:30px;letter-spacing:4px;color:#060ce9;}
+
+  /* ===== PRESENT MODE ===== */
+  .exit-present{display:none;position:fixed;top:10px;right:12px;z-index:40;font-family:'Oswald';font-weight:600;
+    font-size:13px;letter-spacing:1px;text-transform:uppercase;border:none;border-radius:6px;padding:8px 14px;
+    color:#02063a;background:var(--jep-gold);cursor:pointer;opacity:.55;transition:opacity .15s;}
+  .exit-present:hover{opacity:1;}
+  .present-strip{display:none;}
+  .present-final{display:none;}
+
+  body.present-mode{padding:10px 14px 0;}
+  body.present-mode header{margin-bottom:6px;}
+  body.present-mode header h1{font-size:clamp(26px,4vw,46px);}
+  body.present-mode header .sub{display:none;}
+  body.present-mode .room-bar,
+  body.present-mode .bank-bar,
+  body.present-mode .toolbar,
+  body.present-mode .hint,
+  body.present-mode .saved-note,
+  body.present-mode .panel,
+  body.present-mode #finalJBtn,
+  body.present-mode .scores{display:none !important;}
+  body.present-mode .exit-present{display:block;}
+  body.present-mode .layout{display:block;max-width:none;}
+  body.present-mode .board-wrap{max-width:1500px;margin:0 auto;}
+  body.present-mode .board{gap:8px;}
+  body.present-mode .cat{min-height:74px;font-size:clamp(13px,1.5vw,20px);}
+  body.present-mode .tile{font-size:clamp(24px,3.6vw,46px);}
+
+  body.present-mode .present-strip{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;
+    max-width:1500px;margin:14px auto 0;padding-bottom:10px;}
+  body.present-mode .present-strip .pteam{display:flex;align-items:center;gap:10px;
+    background:linear-gradient(180deg,#0a1474,#040a40);border:2px solid var(--jep-gold);border-radius:10px;
+    padding:8px 14px;min-width:150px;}
+  body.present-mode .present-strip .pteam.lead{border-color:var(--jep-gold-bright);box-shadow:0 0 14px rgba(244,201,93,.4);}
+  body.present-mode .present-strip .plogo{width:38px;height:38px;border-radius:7px;object-fit:cover;background:#02063a;border:1px solid #2b3fc7;flex-shrink:0;}
+  body.present-mode .present-strip .pinfo{display:flex;flex-direction:column;align-items:flex-start;line-height:1.1;}
+  body.present-mode .present-strip .pname{font-family:'Oswald';font-weight:600;font-size:15px;text-transform:uppercase;letter-spacing:.5px;color:var(--jep-gold-bright);}
+  body.present-mode .present-strip .pscore{font-family:'Anton';font-size:26px;color:#fff;text-shadow:2px 2px 0 #000;}
+  body.present-mode .present-strip .pscore.neg{color:#ff7b7b;}
+  body.present-mode .present-final{display:block;max-width:300px;margin:6px auto 12px;background:#7a1fa2;color:#fff;}
 </style>
 </head>
 <body>
@@ -175,6 +215,7 @@
 </div>
 
 <div class="toolbar">
+  <button class="btn" id="presentBtn">▶ Present Mode</button>
   <button class="btn secondary" id="addTeam">+ Add Team</button>
   <button class="btn secondary" id="resetTiles">Reset Tiles</button>
   <button class="btn secondary" id="resetScores">Reset Scores</button>
@@ -183,6 +224,8 @@
   <button class="btn" id="showQR">📱 Show QR</button>
   <a class="btn" href="admin.html" style="text-decoration:none;display:inline-flex;align-items:center;">⚙ Admin / Edit</a>
 </div>
+
+<button class="exit-present" id="exitPresent" title="Back to setup">⚙ Setup</button>
 
 <div class="layout">
   <div class="board-wrap">
@@ -201,6 +244,9 @@
 </div>
 
 <div class="scores" id="scores"></div>
+
+<div class="present-strip" id="presentStrip"></div>
+<button class="btn present-final" id="presentFinalBtn">★ Final Jeopardy</button>
 
 <div class="hint">Pick a question bank and click <b>Load</b>, or use the built-in default. Click a dollar value to show a clue (auto-arms the buzzers). Click a team's logo box to upload a logo. To edit questions, use the <b>⚙ Admin / Edit</b> page (login required).</div>
 
@@ -649,6 +695,24 @@ function renderScores(){
     d.querySelector('.remove').addEventListener('click',()=>{teams.splice(i,1);renderScores();broadcastState();saveState();});
     scoresEl.appendChild(d);
   });
+  renderPresentStrip();
+}
+
+// Compact bottom score strip shown in Present mode
+function renderPresentStrip(){
+  const strip=document.getElementById('presentStrip');
+  if(!strip) return;
+  strip.innerHTML='';
+  const maxScore=teams.length?Math.max(...teams.map(t=>t.score)):0;
+  teams.forEach(tm=>{
+    const lead=(tm.score===maxScore&&maxScore>0)?' lead':'';
+    const neg=tm.score<0?' neg':'';
+    const logo=tm.logo?`<img class="plogo" src="${tm.logo}" alt="">`:'';
+    const d=document.createElement('div');d.className='pteam'+lead;
+    d.innerHTML=`${logo}<div class="pinfo"><span class="pname">${tm.name.replace(/</g,'&lt;')}</span>
+      <span class="pscore${neg}">${tm.score<0?'-$'+Math.abs(tm.score):'$'+tm.score}</span></div>`;
+    strip.appendChild(d);
+  });
 }
 
 /* ===== TOOLBAR (play/projection page — no editing) ===== */
@@ -679,6 +743,20 @@ document.getElementById('showQR').onclick=()=>{
 };
 document.getElementById('qrClose').onclick=()=>qrOverlay.classList.remove('show');
 qrOverlay.addEventListener('click',e=>{if(e.target===qrOverlay)qrOverlay.classList.remove('show');});
+
+/* ===== PRESENT MODE ===== */
+function enterPresent(){ document.body.classList.add('present-mode'); renderPresentStrip(); window.scrollTo(0,0); }
+function exitPresent(){ document.body.classList.remove('present-mode'); }
+document.getElementById('presentBtn').onclick=enterPresent;
+document.getElementById('exitPresent').onclick=exitPresent;
+document.getElementById('presentFinalBtn').onclick=()=>openFinal();
+// Esc leaves present mode (only if no clue/QR open)
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape' && document.body.classList.contains('present-mode')
+     && !overlay.classList.contains('show') && !qrOverlay.classList.contains('show')){
+    exitPresent();
+  }
+});
 
 /* ===== INIT ===== */
 document.getElementById('roomCode').textContent=ROOM;

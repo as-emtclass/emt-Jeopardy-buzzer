@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>EMT Jeopardy — Buzzer</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&display=swap');
+  :root{--jep-blue:#060ce9;--jep-gold:#d9a441;--jep-gold-bright:#f4c95d;}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{font-family:'Oswald',sans-serif;background:radial-gradient(ellipse at top,#0a1568,#02063a 60%,#000423);
+    color:#fff;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center;}
+  h1{font-family:'Anton';font-size:34px;letter-spacing:2px;color:var(--jep-gold-bright);text-shadow:3px 3px 0 #000;margin-bottom:4px;}
+  .sub{font-size:12px;letter-spacing:4px;color:#9fb0ff;text-transform:uppercase;margin-bottom:24px;}
+
+  .screen{display:none;width:100%;max-width:420px;}
+  .screen.active{display:block;}
+
+  label{display:block;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#9fb0ff;margin:14px 0 6px;text-align:left;}
+  input[type=text]{width:100%;padding:14px;border-radius:8px;border:2px solid var(--jep-gold);background:#02063a;color:#fff;
+    font-family:'Anton';font-size:24px;letter-spacing:4px;text-align:center;text-transform:uppercase;outline:none;}
+  .btn{font-family:'Oswald';font-weight:700;font-size:18px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;
+    border:none;border-radius:10px;padding:16px;width:100%;color:#02063a;background:var(--jep-gold);margin-top:18px;transition:.15s;}
+  .btn:active{transform:scale(.97);}
+  .btn.secondary{background:#1a2b9e;color:#fff;}
+
+  .teamgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;}
+  .teamgrid button{font-family:'Oswald';font-weight:600;font-size:16px;padding:16px 8px;border-radius:10px;border:2px solid var(--jep-gold);
+    background:#0a1474;color:#fff;cursor:pointer;text-transform:uppercase;letter-spacing:1px;}
+  .teamgrid button:active{background:var(--jep-gold);color:#02063a;}
+
+  .joinedas{font-size:13px;color:#9fb0ff;letter-spacing:1px;margin-bottom:10px;}
+  .joinedas b{color:var(--jep-gold-bright);font-size:18px;}
+
+  /* Buzz button */
+  .buzz{width:min(78vw,300px);height:min(78vw,300px);border-radius:50%;border:none;cursor:pointer;
+    font-family:'Anton';font-size:48px;letter-spacing:2px;color:#fff;margin:18px auto;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 35% 30%,#ff5b5b,#c0182a 70%);box-shadow:0 12px 0 #7a0f1c,0 16px 30px rgba(0,0,0,.5);
+    transition:.08s;user-select:none;text-shadow:2px 2px 0 rgba(0,0,0,.4);}
+  .buzz:active{transform:translateY(8px);box-shadow:0 4px 0 #7a0f1c,0 8px 16px rgba(0,0,0,.5);}
+  .buzz:disabled{background:radial-gradient(circle at 35% 30%,#5a6080,#2c3150 70%);box-shadow:0 6px 0 #1a1d33;cursor:default;color:#aab;}
+
+  .state{font-size:15px;letter-spacing:2px;text-transform:uppercase;min-height:24px;margin-top:6px;}
+  .state.armed{color:#4caf50;}
+  .state.locked{color:#ff7b7b;}
+  .rankmsg{font-family:'Anton';font-size:30px;color:var(--jep-gold-bright);min-height:38px;margin-top:8px;}
+  .conn{font-size:11px;letter-spacing:1px;margin-top:18px;color:#6c7bbf;}
+  .conn .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#c44;margin-right:5px;}
+  .conn .dot.on{background:#4caf50;}
+  .err{background:#5a1a1a;border:1px solid #a33;border-radius:8px;padding:10px;font-size:13px;margin-top:14px;display:none;}
+  .changeteam{background:none;border:none;color:#9fb0ff;text-decoration:underline;font-size:12px;cursor:pointer;margin-top:14px;}
+</style>
+</head>
+<body>
+
+<h1>EMT&nbsp;JEOPARDY</h1>
+<div class="sub">Buzzer</div>
+
+<!-- Screen 1: enter room code -->
+<div class="screen active" id="screenCode">
+  <label>Room Code</label>
+  <input type="text" id="codeInput" maxlength="4" placeholder="ABCD" autocomplete="off" autocapitalize="characters">
+  <button class="btn" id="codeBtn">Join Room</button>
+  <div class="err" id="codeErr"></div>
+</div>
+
+<!-- Screen 2: pick team -->
+<div class="screen" id="screenTeam">
+  <label>Pick your team</label>
+  <div class="teamgrid" id="teamGrid"></div>
+  <div class="conn" id="teamConn"><span class="dot" id="teamDot"></span><span id="teamConnTxt">connecting…</span></div>
+  <button class="changeteam" id="backToCode">← change room code</button>
+</div>
+
+<!-- Screen 3: buzzer -->
+<div class="screen" id="screenBuzz">
+  <div class="joinedas">Buzzing for <b id="myTeam">—</b></div>
+  <button class="buzz" id="buzzBtn" disabled>WAIT</button>
+  <div class="state" id="buzzState">Waiting for host…</div>
+  <div class="rankmsg" id="rankMsg"></div>
+  <div class="conn" id="conn"><span class="dot" id="connDot"></span><span id="connTxt">connecting…</span></div>
+  <button class="changeteam" id="changeTeam">← change team</button>
+</div>
+
+<script>
+const configured=(typeof SUPABASE_URL!=='undefined'&&SUPABASE_URL&&!SUPABASE_URL.includes('YOUR_')&&
+  typeof SUPABASE_ANON_KEY!=='undefined'&&SUPABASE_ANON_KEY&&!SUPABASE_ANON_KEY.includes('YOUR_'));
+
+let supa=null, channel=null, ROOM=null, myTeam=null, armed=false, hasBuzzed=false, teamList=[];
+
+const $=id=>document.getElementById(id);
+function show(screen){['screenCode','screenTeam','screenBuzz'].forEach(s=>$(s).classList.toggle('active',s===screen));}
+
+/* simple click sound */
+let actx=null;function ac(){if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();return actx;}
+function tick(f=600){try{const c=ac();const o=c.createOscillator();const g=c.createGain();o.frequency.value=f;o.connect(g);g.connect(c.destination);
+  g.gain.setValueAtTime(.3,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+.15);o.start();o.stop(c.currentTime+.16);}catch(e){}}
+
+/* Screen 1 */
+$('codeBtn').onclick=()=>{
+  const code=$('codeInput').value.trim().toUpperCase();
+  if(code.length<3){$('codeErr').textContent='Enter the room code shown on the host screen.';$('codeErr').style.display='block';return;}
+  if(!configured){$('codeErr').textContent='This buzzer isn’t configured yet (config.js). Ask the host.';$('codeErr').style.display='block';return;}
+  ROOM=code;$('codeErr').style.display='none';
+  connect();
+  show('screenTeam');
+};
+$('codeInput').addEventListener('keydown',e=>{if(e.key==='Enter')$('codeBtn').click();});
+$('backToCode').onclick=()=>{teardown();show('screenCode');};
+
+/* Connect to room channel */
+function connect(){
+  supa=supa||supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+  if(channel) supa.removeChannel(channel);
+  channel=supa.channel('jeopardy-'+ROOM,{config:{broadcast:{self:false}}});
+
+  channel.on('broadcast',{event:'state'},({payload})=>{
+    teamList=payload.teams||[];
+    renderTeams();
+    const wasArmed=armed; armed=!!payload.armed;
+    if(myTeam){ updateBuzzUI(); if(armed&&!wasArmed){hasBuzzed=false;updateBuzzUI();} }
+    setConn(true);
+  });
+
+  channel.subscribe(status=>{
+    const on=status==='SUBSCRIBED';
+    setConn(on);
+    if(on){ channel.send({type:'broadcast',event:'join',payload:{}}); }
+  });
+}
+function teardown(){ if(channel){supa.removeChannel(channel);channel=null;} myTeam=null; }
+
+function setConn(on){
+  ['teamDot','connDot'].forEach(d=>$(d).classList.toggle('on',on));
+  $('teamConnTxt').textContent=on?'connected — pick a team':'connecting…';
+  $('connTxt').textContent=on?'connected':'reconnecting…';
+}
+
+/* Screen 2: teams */
+function renderTeams(){
+  const g=$('teamGrid');g.innerHTML='';
+  if(!teamList.length){g.innerHTML='<div style="grid-column:1/3;color:#9fb0ff;font-size:14px;">Waiting for host to set up teams…</div>';return;}
+  teamList.forEach(name=>{
+    const b=document.createElement('button');b.textContent=name;
+    b.onclick=()=>{myTeam=name;$('myTeam').textContent=name;tick(800);show('screenBuzz');updateBuzzUI();};
+    g.appendChild(b);
+  });
+}
+$('changeTeam').onclick=()=>{show('screenTeam');};
+
+/* Screen 3: buzz */
+const buzzBtn=$('buzzBtn');
+buzzBtn.onclick=()=>{
+  if(!armed||hasBuzzed||!channel)return;
+  hasBuzzed=true;tick(440);
+  channel.send({type:'broadcast',event:'buzz',payload:{team:myTeam}});
+  updateBuzzUI();
+};
+function updateBuzzUI(){
+  if(!myTeam)return;
+  if(armed&&!hasBuzzed){
+    buzzBtn.disabled=false;buzzBtn.textContent='BUZZ';
+    $('buzzState').textContent='● Buzzers open!';$('buzzState').className='state armed';$('rankMsg').textContent='';
+  }else if(hasBuzzed){
+    buzzBtn.disabled=true;buzzBtn.textContent='SENT';
+    $('buzzState').textContent='Buzz sent — watch the host screen';$('buzzState').className='state locked';
+  }else{
+    buzzBtn.disabled=true;buzzBtn.textContent='WAIT';
+    $('buzzState').textContent='Waiting for host…';$('buzzState').className='state';$('rankMsg').textContent='';
+  }
+}
+</script>
+</body>
+</html>

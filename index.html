@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EMT Jeopardy — Host</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="config.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&display=swap');
+  :root{
+    --jep-blue:#060ce9;--jep-blue-dark:#02075d;--jep-gold:#d9a441;
+    --jep-gold-bright:#f4c95d;--value-gold:#d69f4c;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:'Oswald',sans-serif;
+    background:radial-gradient(ellipse at top,#0a1568 0%,#02063a 60%,#000423 100%);
+    color:#fff;min-height:100vh;padding:18px;
+  }
+  header{text-align:center;margin-bottom:12px;}
+  header h1{
+    font-family:'Anton';font-size:clamp(30px,6vw,64px);letter-spacing:3px;
+    color:var(--jep-gold-bright);text-shadow:4px 4px 0 #000,0 0 22px rgba(244,201,93,.35);line-height:.95;
+  }
+  header .sub{font-size:13px;letter-spacing:5px;color:#9fb0ff;text-transform:uppercase;margin-top:4px;}
+
+  .room-bar{
+    text-align:center;margin:6px auto 14px;font-size:15px;letter-spacing:1px;color:#cdd6ff;
+  }
+  .room-bar b{color:var(--jep-gold-bright);font-family:'Anton';font-size:22px;letter-spacing:3px;}
+  .status-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#c44;margin-right:6px;vertical-align:middle;}
+  .status-dot.on{background:#4caf50;box-shadow:0 0 8px #4caf50;}
+
+  .layout{display:grid;grid-template-columns:1fr 320px;gap:16px;max-width:1500px;margin:0 auto;align-items:start;}
+  @media(max-width:1100px){.layout{grid-template-columns:1fr;}}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:0 auto 14px;}
+  .btn{font-family:'Oswald';font-weight:600;font-size:13px;letter-spacing:1px;text-transform:uppercase;
+    cursor:pointer;border:none;border-radius:6px;padding:8px 14px;color:#02063a;background:var(--jep-gold);transition:.15s;}
+  .btn:hover{background:var(--jep-gold-bright);transform:translateY(-1px);}
+  .btn.secondary{background:#1a2b9e;color:#fff;}
+  .btn.secondary:hover{background:#2b3fc7;}
+  .btn.danger{background:#a33;color:#fff;}
+  .btn.big{font-size:16px;padding:12px 18px;width:100%;}
+
+  .board{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;background:#000;padding:6px;border-radius:6px;}
+  .cat{background:linear-gradient(180deg,#0810c0,var(--jep-blue));border:2px solid #000;min-height:68px;
+    display:flex;align-items:center;justify-content:center;text-align:center;padding:5px;
+    font-weight:700;text-transform:uppercase;font-size:clamp(10px,1.2vw,16px);letter-spacing:.5px;
+    color:#fff;text-shadow:2px 2px 0 #000;}
+  .cat[contenteditable]{cursor:text;outline:none;}
+  .cat[contenteditable]:focus{background:#1a2bd6;}
+  .tile{background:linear-gradient(180deg,var(--jep-blue),#040a9e);border:2px solid #000;aspect-ratio:1.55/1;
+    display:flex;align-items:center;justify-content:center;font-family:'Anton';font-size:clamp(18px,3vw,38px);
+    color:var(--value-gold);text-shadow:3px 3px 0 #000;cursor:pointer;transition:.12s;user-select:none;}
+  .tile:hover{background:#1a2bd6;transform:scale(1.03);}
+  .tile.used{color:transparent;text-shadow:none;cursor:default;background:#020640;border-color:#020640;}
+  .tile.used:hover{transform:none;}
+
+  /* Buzzer panel */
+  .panel{background:linear-gradient(180deg,#0a1474,#040a40);border:2px solid var(--jep-gold);border-radius:10px;padding:14px;}
+  .panel h2{font-family:'Anton';color:var(--jep-gold-bright);font-size:20px;letter-spacing:2px;text-align:center;margin-bottom:4px;}
+  .panel .armed-state{text-align:center;font-size:13px;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;}
+  .armed-state.armed{color:#4caf50;}
+  .armed-state.locked{color:#ff7b7b;}
+  .buzzlist{list-style:none;min-height:60px;}
+  .buzzlist li{display:flex;align-items:center;gap:10px;background:#02063a;border:1px solid #2b3fc7;border-radius:6px;
+    padding:8px 10px;margin-bottom:6px;animation:pop .2s ease;}
+  @keyframes pop{from{transform:scale(.85);opacity:0;}to{transform:scale(1);opacity:1;}}
+  .buzzlist li .rank{font-family:'Anton';font-size:22px;color:var(--jep-gold-bright);min-width:30px;text-align:center;}
+  .buzzlist li.first .rank{color:#4caf50;}
+  .buzzlist li .who{flex:1;font-weight:600;font-size:16px;}
+  .buzzlist li .ms{font-size:12px;color:#9fb0ff;font-variant-numeric:tabular-nums;}
+  .empty-note{text-align:center;color:#6c7bbf;font-size:13px;padding:14px 0;}
+
+  /* Scores */
+  .scores{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px;max-width:1500px;margin:18px auto 0;}
+  .team{background:linear-gradient(180deg,#0a1474,#040a40);border:2px solid var(--jep-gold);border-radius:8px;padding:9px;text-align:center;position:relative;}
+  .team input.name{width:100%;background:transparent;border:none;border-bottom:1px solid #3b4bb0;color:var(--jep-gold-bright);
+    font-family:'Oswald';font-weight:600;font-size:14px;text-align:center;text-transform:uppercase;letter-spacing:1px;outline:none;padding:2px;}
+  .team .score{font-family:'Anton';font-size:30px;color:#fff;margin:6px 0;text-shadow:2px 2px 0 #000;}
+  .team .score.neg{color:#ff7b7b;}
+  .team .adj{display:flex;gap:3px;justify-content:center;flex-wrap:wrap;}
+  .team .adj button{cursor:pointer;border:none;border-radius:4px;font-weight:700;font-family:'Oswald';padding:3px 6px;font-size:10px;background:#1a2b9e;color:#fff;}
+  .team .adj button.minus{background:#7a2230;}
+  .team .remove{position:absolute;top:3px;right:6px;background:none;border:none;color:#ff7b7b;cursor:pointer;font-size:15px;font-weight:700;}
+  .connected-badge{font-size:10px;color:#4caf50;letter-spacing:1px;margin-top:3px;min-height:12px;}
+
+  /* Modal */
+  .overlay{position:fixed;inset:0;background:rgba(0,2,20,.85);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .overlay.show{display:flex;}
+  .card{background:linear-gradient(180deg,var(--jep-blue),var(--jep-blue-dark));border:4px solid #000;border-radius:10px;
+    width:min(900px,95vw);min-height:320px;display:flex;flex-direction:column;justify-content:center;padding:34px 28px;text-align:center;position:relative;box-shadow:0 0 50px rgba(6,12,233,.6);}
+  .card .value-tag{font-family:'Anton';color:var(--jep-gold-bright);font-size:28px;margin-bottom:12px;text-shadow:2px 2px 0 #000;}
+  .card .content{font-family:'Oswald';font-weight:500;font-size:clamp(19px,3.4vw,36px);text-transform:uppercase;line-height:1.25;
+    text-shadow:2px 2px 0 #000;min-height:70px;display:flex;align-items:center;justify-content:center;outline:none;border-radius:6px;padding:6px;}
+  .card .content[contenteditable]:focus{background:rgba(255,255,255,.08);}
+  .card .label{font-size:11px;letter-spacing:3px;color:#9fb0ff;text-transform:uppercase;margin:16px 0 6px;}
+  .card .controls{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px;}
+  .editnote{position:absolute;top:10px;left:14px;font-size:11px;color:#9fb0ff;letter-spacing:1px;}
+  .closeX{position:absolute;top:8px;right:14px;background:none;border:none;color:#fff;font-size:24px;cursor:pointer;}
+  .hint{text-align:center;color:#7c8bd0;font-size:12px;letter-spacing:1px;margin-top:22px;}
+  .setup-warn{max-width:700px;margin:0 auto 14px;background:#5a1a1a;border:1px solid #a33;border-radius:8px;padding:12px;text-align:center;font-size:14px;display:none;}
+  /* Team logos */
+  .team .logo-wrap{display:flex;justify-content:center;margin:4px 0 2px;}
+  .team .logo{width:54px;height:54px;border-radius:8px;object-fit:cover;border:2px solid #2b3fc7;background:#02063a;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;color:#6c7bbf;letter-spacing:1px;text-align:center;overflow:hidden;}
+  .team .logo:hover{border-color:var(--jep-gold-bright);}
+  .team .logo img{width:100%;height:100%;object-fit:cover;display:block;}
+  .team .logo-clear{position:absolute;top:3px;left:6px;background:none;border:none;color:#9fb0ff;cursor:pointer;font-size:12px;display:none;}
+  .team.has-logo .logo-clear{display:block;}
+  .buzzlist li .blogo{width:26px;height:26px;border-radius:5px;object-fit:cover;background:#02063a;border:1px solid #2b3fc7;}
+  .saved-note{text-align:center;color:#4caf50;font-size:11px;letter-spacing:1px;min-height:14px;margin-top:6px;opacity:0;transition:opacity .3s;}
+  .saved-note.show{opacity:1;}
+  /* Question bank bar */
+  .bank-bar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;max-width:1100px;margin:8px auto 4px;
+    background:#0a1474;border:1px solid #2b3fc7;border-radius:8px;padding:8px 12px;}
+  .bank-bar .bank-label{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#9fb0ff;}
+  .bank-bar select,.bank-bar input{font-family:'Oswald';font-size:13px;padding:7px 9px;border-radius:6px;border:1px solid #2b3fc7;
+    background:#02063a;color:#fff;outline:none;}
+  .bank-bar select{min-width:200px;}
+  .bank-bar input{width:190px;}
+  .bank-bar .btn{padding:7px 12px;font-size:12px;}
+  .bank-status{font-size:12px;letter-spacing:.5px;color:#4caf50;min-width:80px;}
+  .bank-status.err{color:#ff7b7b;}
+  /* QR popup */
+  .qr-card{background:#fff;border:4px solid var(--jep-gold);border-radius:14px;padding:28px 30px;text-align:center;position:relative;width:min(460px,92vw);box-shadow:0 0 50px rgba(6,12,233,.6);}
+  .qr-card .closeX{color:#02063a;}
+  .qr-title{font-family:'Anton';color:#02063a;font-size:30px;letter-spacing:3px;margin-bottom:18px;}
+  #qrHolder{display:flex;justify-content:center;}
+  #qrHolder canvas,#qrHolder img{width:300px;height:300px;image-rendering:pixelated;}
+  .qr-url{font-family:'Oswald';color:#3a4ba0;font-size:14px;margin-top:14px;word-break:break-all;}
+  .qr-code{font-family:'Oswald';color:#02063a;font-size:20px;margin-top:14px;letter-spacing:1px;}
+  .qr-code b{font-family:'Anton';font-size:30px;letter-spacing:4px;color:#060ce9;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>EMT&nbsp;JEOPARDY</h1>
+  <div class="sub">Game&nbsp;Screen&nbsp;·&nbsp;End&nbsp;of&nbsp;Quarter&nbsp;Review</div>
+</header>
+
+<div class="setup-warn" id="setupWarn">
+  ⚠️ Supabase isn’t configured yet. Open <b>config.js</b> and paste your project URL and anon key. The buzzer won’t connect until then. (The board &amp; scores still work offline.)
+</div>
+
+<div class="room-bar">
+  <span class="status-dot" id="statusDot"></span>
+  Room Code: <b id="roomCode">----</b>
+  &nbsp;·&nbsp; Players join at <b style="font-size:15px;letter-spacing:1px;" id="joinUrl">your-site/player.html</b>
+</div>
+<div class="saved-note" id="savedNote">✓ saved</div>
+
+<div class="bank-bar" id="bankBar">
+  <span class="bank-label">Question Bank:</span>
+  <select id="bankSelect"><option value="">— Built-in default board —</option></select>
+  <button class="btn" id="bankLoad">Load</button>
+  <button class="btn secondary" id="bankRefresh" title="Refresh list">⟳</button>
+  <span class="bank-status" id="bankStatus"></span>
+</div>
+
+<div class="toolbar">
+  <button class="btn secondary" id="addTeam">+ Add Team</button>
+  <button class="btn secondary" id="resetTiles">Reset Tiles</button>
+  <button class="btn secondary" id="resetScores">Reset Scores</button>
+  <button class="btn secondary" id="soundToggle">🔊 Sound: ON</button>
+  <button class="btn secondary" id="newRoom">New Room Code</button>
+  <button class="btn" id="showQR">📱 Show QR</button>
+  <a class="btn" href="admin.html" style="text-decoration:none;display:inline-flex;align-items:center;">⚙ Admin / Edit</a>
+</div>
+
+<div class="layout">
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+    <button class="btn big" id="finalJBtn" style="margin-top:10px;background:#7a1fa2;color:#fff;">★ Final Jeopardy</button>
+  </div>
+
+  <div class="panel">
+    <h2>BUZZERS</h2>
+    <div class="armed-state" id="armedState">Idle</div>
+    <button class="btn big" id="armBtn">Arm Buzzers</button>
+    <button class="btn secondary big" id="clearBuzz" style="margin-top:8px;">Clear Buzz Order</button>
+    <ol class="buzzlist" id="buzzlist"></ol>
+    <div class="empty-note" id="emptyNote">No buzzes yet. Arm the buzzers, then read the clue.</div>
+  </div>
+</div>
+
+<div class="scores" id="scores"></div>
+
+<div class="hint">Pick a question bank and click <b>Load</b>, or use the built-in default. Click a dollar value to show a clue (auto-arms the buzzers). Click a team's logo box to upload a logo. To edit questions, use the <b>⚙ Admin / Edit</b> page (login required).</div>
+
+<!-- QR popup -->
+<div class="overlay" id="qrOverlay">
+  <div class="qr-card">
+    <button class="closeX" id="qrClose">×</button>
+    <div class="qr-title">SCAN TO JOIN</div>
+    <div id="qrHolder"></div>
+    <div class="qr-url" id="qrUrl"></div>
+    <div class="qr-code">Then enter room code: <b id="qrRoom">----</b></div>
+  </div>
+</div>
+
+<!-- Clue modal -->
+<div class="overlay" id="overlay">
+  <div class="card">
+    <div class="editnote" id="editnote" style="display:none;">EDIT MODE — click text to type</div>
+    <button class="closeX" id="closeX">×</button>
+    <div class="value-tag" id="mValue">$200</div>
+    <div class="content" id="mQuestion">Clue text…</div>
+    <div class="label">Answer</div>
+    <div class="content" id="mAnswer" style="font-size:clamp(16px,2.6vw,26px);color:var(--jep-gold-bright);">Answer text…</div>
+    <div class="controls">
+      <button class="btn" id="revealBtn">Reveal Answer</button>
+      <button class="btn secondary" id="markDone">Close &amp; Mark Used</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== CONFIG / SUPABASE ===== */
+const VALUES=[200,400,600,800,1000];
+const NUM_CATEGORIES=6;
+const DEFAULT_TEAMS=3;
+let editMode=false, soundOn=true, activeCell=null;
+let armed=false;
+let buzzes=[]; // {team, t}
+
+// Room code (short, shareable)
+function makeCode(){ const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s=''; for(let i=0;i<4;i++) s+=a[Math.floor(Math.random()*a.length)]; return s; }
+let ROOM = makeCode();
+
+let supa=null, channel=null;
+const configured = (typeof SUPABASE_URL!=='undefined' && SUPABASE_URL && !SUPABASE_URL.includes('YOUR_') &&
+                    typeof SUPABASE_ANON_KEY!=='undefined' && SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('YOUR_'));
+
+const statusDot=document.getElementById('statusDot');
+const setupWarn=document.getElementById('setupWarn');
+
+function connectRoom(){
+  if(!configured){ setupWarn.style.display='block'; return; }
+  if(channel){ supa.removeChannel(channel); channel=null; }
+  supa = supa || supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  channel = supa.channel('jeopardy-'+ROOM, { config:{ broadcast:{ self:false } }});
+
+  channel.on('broadcast',{event:'buzz'},({payload})=>{
+    if(!armed) return;
+    if(buzzes.find(b=>b.team===payload.team)) return; // one buzz per team per round
+    buzzes.push({team:payload.team, t:performance.now()});
+    renderBuzzes(); playBuzz();
+  });
+  channel.on('broadcast',{event:'join'},({payload})=>{
+    // optional: could track joins; harmless to ignore
+  });
+
+  channel.subscribe(status=>{
+    if(status==='SUBSCRIBED'){ statusDot.classList.add('on'); broadcastState(); }
+    else statusDot.classList.remove('on');
+  });
+}
+
+// Tell players the current team list + armed state so their phones stay in sync
+function broadcastState(){
+  if(!channel) return;
+  channel.send({type:'broadcast', event:'state', payload:{
+    teams: teams.map(t=>t.name), armed
+  }});
+}
+
+/* ===== SOUNDS ===== */
+let actx=null;
+function ac(){ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); return actx; }
+function beep(f,s,d,type='sine',g=0.25){const c=ac();const o=c.createOscillator();const gn=c.createGain();
+  o.type=type;o.frequency.value=f;o.connect(gn);gn.connect(c.destination);const t=c.currentTime+s;
+  gn.gain.setValueAtTime(0,t);gn.gain.linearRampToValueAtTime(g,t+0.02);gn.gain.exponentialRampToValueAtTime(0.001,t+d);
+  o.start(t);o.stop(t+d+0.02);}
+function playThemeIntro(){if(!soundOn)return;const n=[392,330,392,523,392,330,294,392,330,392,523,587];let t=0;n.forEach(f=>{beep(f,t,0.32,'triangle',0.2);t+=0.30;});}
+function playReveal(){if(!soundOn)return;beep(660,0,0.12,'square',0.2);beep(880,0.1,0.18,'square',0.2);}
+function playSelect(){if(!soundOn)return;beep(520,0,0.08);beep(780,0.05,0.12);}
+function playBuzz(){if(!soundOn)return;beep(440,0,0.18,'sawtooth',0.3);beep(330,0.08,0.2,'sawtooth',0.25);}
+function playRight(){if(!soundOn)return;beep(523,0,0.12);beep(659,0.12,0.12);beep(784,0.24,0.2);}
+function playWrong(){if(!soundOn)return;beep(200,0,0.3,'sawtooth',0.25);beep(150,0.15,0.35,'sawtooth',0.22);}
+
+/* ===== DATA ===== */
+// Default EMT board (your question/answer key). Editable in-game; restored by "New Quarter".
+function freshData(){return{
+  categories:[
+    {title:"BREATHE EASY (OR NOT)",cells:[
+      {question:"What is the ventilation rate for an adult with a pulse who requires BVM ventilations?",answer:"1 breath every 6 seconds (10 breaths per minute).",used:false},
+      {question:"What abnormal breath sounds indicate fluid in the alveoli and are commonly heard in CHF or pneumonia?",answer:"Crackles (rales).",used:false},
+      {question:"Name common signs and symptoms of emphysema.",answer:"Dyspnea, pursed-lip breathing, prolonged expiration, barrel chest, diminished breath sounds, and accessory muscle use.",used:false},
+      {question:"What is the difference between respiratory distress and respiratory failure?",answer:"Respiratory distress: patient is still compensating. Respiratory failure: breathing is inadequate to maintain oxygenation or ventilation.",used:false},
+      {question:"How does treatment differ between respiratory distress and respiratory failure?",answer:"Respiratory distress: give supplemental oxygen. Respiratory failure: provide assisted ventilations with a BVM.",used:false}
+    ]},
+    {title:"THIS WON'T BUFF OUT",cells:[
+      {question:"What is the most common preventable cause of death in trauma patients?",answer:"Uncontrolled hemorrhage leading to hemorrhagic shock.",used:false},
+      {question:"Name two signs of a basilar skull fracture that contraindicate NPA placement.",answer:"Raccoon eyes and Battle's sign.",used:false},
+      {question:"What condition occurs when air escapes from the lungs into the subcutaneous tissue, causing a crackling sensation on palpation?",answer:"Subcutaneous emphysema.",used:false},
+      {question:"A cervical spine injury causes breathing difficulty. Which spinal levels control the diaphragm?",answer:"C3–C5, which control the phrenic nerve and diaphragm.",used:false},
+      {question:"Widening pulse pressure, bradycardia, and irregular respirations indicate what condition?",answer:"Cushing's triad, a sign of increased intracranial pressure.",used:false}
+    ]},
+    {title:"BABY ON BOARD",cells:[
+      {question:"What does APGAR stand for and when is it assessed?",answer:"Appearance, Pulse, Grimace, Activity, Respiration. Assessed at 1 minute and 5 minutes after birth.",used:false},
+      {question:"What are normal heart and respiratory rates for a newborn?",answer:"HR 120–160 bpm; RR 30–60 breaths per minute.",used:false},
+      {question:"What pregnancy complication is characterized by hypertension, protein in urine, and swelling?",answer:"Preeclampsia.",used:false},
+      {question:"A pregnant patient has abdominal pain, vaginal bleeding, and a rigid uterus. What condition is suspected?",answer:"Abruptio placentae — premature separation of the placenta causing hemorrhage and fetal hypoxia.",used:false},
+      {question:"What condition occurs when the placenta covers the cervix and causes painless vaginal bleeding?",answer:"Placenta previa.",used:false}
+    ]},
+    {title:"\"SIR, THIS IS AN AMBULANCE\"",cells:[
+      {question:"What is the first priority when arriving at an emergency scene?",answer:"Scene safety.",used:false},
+      {question:"What term describes operating an ambulance with regard for the safety of all others?",answer:"Driving with due regard.",used:false},
+      {question:"What federal law protects patient medical privacy?",answer:"HIPAA — Health Insurance Portability and Accountability Act.",used:false},
+      {question:"What is the purpose of triage in a mass casualty incident and what system is commonly used?",answer:"To prioritize patients by severity to maximize survival. Common system: START triage.",used:false},
+      {question:"What are the four national levels of EMS providers?",answer:"EMR, EMT, Advanced EMT, Paramedic.",used:false}
+    ]},
+    {title:"\"WEBMD SAYS I'M DYING\"",cells:[
+      {question:"What are classic signs of appendicitis?",answer:"Periumbilical pain migrating to the RLQ, nausea, fever, and rebound tenderness.",used:false},
+      {question:"Name three classic findings in diabetic ketoacidosis.",answer:"Kussmaul respirations, fruity breath odor, and altered mental status.",used:false},
+      {question:"What distinguishes anaphylaxis from a mild allergic reaction?",answer:"Airway compromise, hypotension, or shock.",used:false},
+      {question:"Which infectious disease causes chronic cough, weight loss, night sweats, and requires N95 precautions?",answer:"Tuberculosis (TB).",used:false},
+      {question:"Sudden abdominal pain radiating to the back with a pulsating abdominal mass suggests what condition?",answer:"Abdominal aortic aneurysm (AAA). Minimize movement, treat for shock, and transport rapidly.",used:false}
+    ]},
+    {title:"\"WE'RE OUT OF SERVICE AFTER THIS, RIGHT?\"",cells:[
+      {question:"What is the poison control phone number?",answer:"1-800-222-1222.",used:false},
+      {question:"At approximately what age do children no longer need torso padding for neutral airway positioning?",answer:"About 8 years old.",used:false},
+      {question:"What is the most common cause of cardiac arrest in pediatric patients?",answer:"Respiratory failure.",used:false},
+      {question:"What condition causes paradoxical chest movement due to multiple rib fractures?",answer:"Flail chest.",used:false},
+      {question:"What condition occurs when the heart cannot pump effectively, causing fluid buildup in the lungs and body?",answer:"Congestive heart failure (CHF).",used:false}
+    ]}
+  ],
+  finalJ:{
+    question:"A 22-year-old male is stabbed in the chest. He is diaphoretic with JVD, muffled heart sounds, hypotension (BP 88/60), and clear bilateral breath sounds. What life-threatening condition is most likely occurring?",
+    answer:"What is cardiac tamponade?",
+    used:false
+  }
+};}
+let data=freshData();
+let teams=[];
+
+/* ===== AUTO-SAVE (browser localStorage) ===== */
+const SAVE_KEY='emt-jeopardy-save-v3';
+let saveTimer=null;
+const savedNote=document.getElementById('savedNote');
+function saveState(){
+  // debounce so rapid edits don't thrash storage
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{
+    try{
+      localStorage.setItem(SAVE_KEY, JSON.stringify({data, teams}));
+      if(savedNote){savedNote.classList.add('show');setTimeout(()=>savedNote.classList.remove('show'),900);}
+    }catch(e){
+      console.warn('Save failed',e);
+      if(savedNote){savedNote.textContent='⚠ Could not save (storage full?)';savedNote.style.color='#ff7b7b';savedNote.classList.add('show');}
+    }
+  },250);
+}
+function loadState(){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(!raw) return false;
+    const s=JSON.parse(raw);
+    if(s&&s.data&&Array.isArray(s.data.categories)){ data=s.data; if(!data.finalJ) data.finalJ=freshData().finalJ; }
+    if(s&&Array.isArray(s.teams)){ teams=s.teams.map(t=>({name:t.name||'Team',score:t.score||0,logo:t.logo||null})); }
+    return true;
+  }catch(e){ console.warn('Load failed',e); return false; }
+}
+function clearSavedState(){ try{localStorage.removeItem(SAVE_KEY);}catch(e){} }
+
+/* ===== CLOUD QUESTION BANKS (Supabase) ===== */
+const bankBar=document.getElementById('bankBar');
+const bankSelect=document.getElementById('bankSelect');
+const bankStatus=document.getElementById('bankStatus');
+let currentBankLabel=''; // '' = local only
+
+function bankClient(){ // reuse the same supabase client used for buzzers
+  if(!configured) return null;
+  supa = supa || supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return supa;
+}
+function setBankStatus(msg,isErr){ bankStatus.textContent=msg||''; bankStatus.className='bank-status'+(isErr?' err':''); }
+
+async function bankRefreshList(){
+  const c=bankClient();
+  if(!c){ setBankStatus('Configure Supabase to use cloud banks',true); return; }
+  const {data:rows,error}=await c.from('jeopardy_boards').select('label,updated_at').order('label');
+  if(error){ setBankStatus('List failed: '+error.message,true); return; }
+  const keep=bankSelect.value;
+  bankSelect.innerHTML='<option value="">— Local board (this computer only) —</option>';
+  (rows||[]).forEach(r=>{
+    const o=document.createElement('option');o.value=r.label;o.textContent=r.label;bankSelect.appendChild(o);
+  });
+  bankSelect.value=currentBankLabel||keep||'';
+  setBankStatus((rows&&rows.length?rows.length+' bank(s)':'No saved banks yet'));
+}
+
+async function bankLoad(){
+  const label=bankSelect.value;
+  if(!label){ setBankStatus('Pick a saved bank to load',true); return; }
+  const c=bankClient(); if(!c){ setBankStatus('Supabase not configured',true); return; }
+  if(!confirm('Load "'+label+'"? This replaces the current questions on screen (scores/logos stay).')) return;
+  const {data:rows,error}=await c.from('jeopardy_boards').select('board').eq('label',label).limit(1);
+  if(error){ setBankStatus('Load failed: '+error.message,true); return; }
+  if(!rows||!rows.length){ setBankStatus('Not found',true); return; }
+  const b=rows[0].board;
+  if(b&&Array.isArray(b.categories)){
+    data=b; if(!data.finalJ) data.finalJ=freshData().finalJ;
+    currentBankLabel=label;
+    renderBoard(); saveState();
+    setBankStatus('Loaded "'+label+'"');
+  }else setBankStatus('That bank looks empty',true);
+}
+
+document.getElementById('bankLoad').onclick=bankLoad;
+document.getElementById('bankRefresh').onclick=bankRefreshList;
+
+/* ===== BOARD ===== */
+const boardEl=document.getElementById('board');
+function renderBoard(){
+  boardEl.innerHTML='';
+  data.categories.forEach(cat=>{
+    const d=document.createElement('div');d.className='cat';d.textContent=cat.title;
+    if(editMode){d.contentEditable=true;d.addEventListener('input',()=>{cat.title=d.textContent;saveState();});}
+    boardEl.appendChild(d);
+  });
+  VALUES.forEach((val,ri)=>{
+    data.categories.forEach((cat,ci)=>{
+      const cell=cat.cells[ri];
+      const t=document.createElement('div');
+      t.className='tile'+(cell.used?' used':'');
+      t.textContent='$'+val;
+      t.addEventListener('click',()=>openClue(ci,ri,t));
+      boardEl.appendChild(t);
+    });
+  });
+}
+
+/* ===== MODAL ===== */
+const overlay=document.getElementById('overlay'),mValue=document.getElementById('mValue'),
+  mQ=document.getElementById('mQuestion'),mA=document.getElementById('mAnswer'),editnote=document.getElementById('editnote');
+function openClue(ci,ri,tileEl){
+  const cell=data.categories[ci].cells[ri];
+  if(cell.used&&!editMode)return;
+  activeCell={ci,ri,tileEl};
+  mValue.textContent='$'+VALUES[ri];mQ.textContent=cell.question;mA.textContent=cell.answer;
+  mA.style.display=editMode?'flex':'none';
+  if(editMode){editnote.style.display='block';mQ.contentEditable=true;mA.contentEditable=true;
+    mQ.oninput=()=>{cell.question=mQ.textContent;saveState();};mA.oninput=()=>{cell.answer=mA.textContent;saveState();};}
+  else{editnote.style.display='none';mQ.contentEditable=false;mA.contentEditable=false;
+    playSelect();setTimeout(playThemeIntro,150);
+    armBuzzers(); // auto-arm when a clue opens
+  }
+  overlay.classList.add('show');
+}
+document.getElementById('revealBtn').onclick=()=>{mA.style.display='flex';playReveal();};
+document.getElementById('markDone').onclick=()=>closeModal(true);
+document.getElementById('closeX').onclick=()=>closeModal(false);
+overlay.addEventListener('click',e=>{if(e.target===overlay)closeModal(false);});
+
+// Final Jeopardy uses the same modal
+function openFinal(){
+  const fj=data.finalJ;
+  if(fj.used&&!editMode){ if(!confirm('Final Jeopardy was already played. Open it again?'))return; }
+  activeCell={isFinal:true};
+  mValue.textContent='★ FINAL JEOPARDY';
+  mQ.textContent=fj.question; mA.textContent=fj.answer;
+  mA.style.display=editMode?'flex':'none';
+  if(editMode){editnote.style.display='block';mQ.contentEditable=true;mA.contentEditable=true;
+    mQ.oninput=()=>{fj.question=mQ.textContent;saveState();};mA.oninput=()=>{fj.answer=mA.textContent;saveState();};}
+  else{editnote.style.display='none';mQ.contentEditable=false;mA.contentEditable=false;
+    playSelect();setTimeout(playThemeIntro,150);armBuzzers();}
+  overlay.classList.add('show');
+}
+document.getElementById('finalJBtn').onclick=openFinal;
+
+function closeModal(markUsed){
+  if(markUsed&&activeCell&&!editMode){
+    if(activeCell.isFinal){ data.finalJ.used=true; }
+    else{ data.categories[activeCell.ci].cells[activeCell.ri].used=true; activeCell.tileEl.classList.add('used'); }
+    saveState();
+  }
+  overlay.classList.remove('show');activeCell=null;
+  disarmBuzzers();
+}
+
+/* ===== BUZZER PANEL ===== */
+const armedState=document.getElementById('armedState'),armBtn=document.getElementById('armBtn'),
+  buzzlist=document.getElementById('buzzlist'),emptyNote=document.getElementById('emptyNote');
+function armBuzzers(){armed=true;buzzes=[];renderBuzzes();updateArmedUI();broadcastState();}
+function disarmBuzzers(){armed=false;updateArmedUI();broadcastState();}
+function updateArmedUI(){
+  if(armed){armedState.textContent='● ARMED — waiting for buzzes';armedState.className='armed-state armed';armBtn.textContent='Disarm';}
+  else{armedState.textContent=buzzes.length?'Locked — buzz order below':'Idle';armedState.className='armed-state'+(buzzes.length?' locked':'');armBtn.textContent='Arm Buzzers';}
+}
+armBtn.onclick=()=>{armed?disarmBuzzers():armBuzzers();};
+document.getElementById('clearBuzz').onclick=()=>{buzzes=[];renderBuzzes();updateArmedUI();};
+function renderBuzzes(){
+  buzzlist.innerHTML='';
+  if(!buzzes.length){emptyNote.style.display='block';return;}
+  emptyNote.style.display='none';
+  const t0=buzzes[0].t;
+  buzzes.forEach((b,i)=>{
+    const li=document.createElement('li');if(i===0)li.className='first';
+    const gap=i===0?'0 ms':'+'+Math.round(b.t-t0)+' ms';
+    const tm=teams.find(t=>t.name===b.team);
+    const logo=tm&&tm.logo?`<img class="blogo" src="${tm.logo}" alt="">`:'';
+    li.innerHTML=`<span class="rank">${i+1}</span>${logo}<span class="who">${b.team.replace(/</g,'&lt;')}</span><span class="ms">${gap}</span>`;
+    buzzlist.appendChild(li);
+  });
+}
+
+/* ===== TEAMS / SCORES ===== */
+const scoresEl=document.getElementById('scores');
+function addTeam(name,logo){if(teams.length>=10){alert('Max 10 teams.');return;}teams.push({name:name||('Team '+(teams.length+1)),score:0,logo:logo||null});renderScores();broadcastState();saveState();}
+
+// Compress an uploaded image to a small thumbnail data URL (keeps storage tiny)
+function compressImage(file,cb){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const max=120; let w=img.width,h=img.height;
+      const scale=Math.min(max/w,max/h,1); w=Math.round(w*scale); h=Math.round(h*scale);
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      cb(cv.toDataURL('image/jpeg',0.8));
+    };
+    img.onerror=()=>alert('Could not read that image.');
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderScores(){
+  scoresEl.innerHTML='';
+  teams.forEach((tm,i)=>{
+    const d=document.createElement('div');d.className='team'+(tm.logo?' has-logo':'');const neg=tm.score<0?' neg':'';
+    const logoInner=tm.logo?`<img src="${tm.logo}" alt="">`:'＋ LOGO';
+    d.innerHTML=`<button class="remove" title="Remove team">×</button>
+      <button class="logo-clear" title="Remove logo">⟲</button>
+      <input class="name" value="${tm.name.replace(/"/g,'&quot;')}">
+      <div class="logo-wrap"><div class="logo" title="Click to upload a logo">${logoInner}</div></div>
+      <div class="score${neg}">${tm.score<0?'-$'+Math.abs(tm.score):'$'+tm.score}</div>
+      <div class="adj">
+        <button data-d="200">+200</button><button data-d="400">+400</button><button data-d="600">+600</button><button data-d="800">+800</button><button data-d="1000">+1000</button>
+      </div>
+      <div class="adj" style="margin-top:4px;">
+        <button class="minus" data-d="-200">-200</button><button class="minus" data-d="-400">-400</button><button class="minus" data-d="-600">-600</button><button class="minus" data-d="-800">-800</button><button class="minus" data-d="-1000">-1000</button>
+      </div>`;
+    d.querySelector('input.name').addEventListener('input',e=>{tm.name=e.target.value;saveState();});
+    d.querySelector('input.name').addEventListener('change',broadcastState);
+    d.querySelector('.logo').addEventListener('click',()=>{
+      const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+      inp.onchange=()=>{const f=inp.files[0];if(!f)return;compressImage(f,url=>{tm.logo=url;renderScores();broadcastState();saveState();});};
+      inp.click();
+    });
+    d.querySelector('.logo-clear').addEventListener('click',()=>{tm.logo=null;renderScores();broadcastState();saveState();});
+    d.querySelectorAll('.adj button').forEach(b=>b.addEventListener('click',()=>{
+      const delta=parseInt(b.dataset.d,10);tm.score+=delta;delta>0?playRight():playWrong();renderScores();saveState();
+    }));
+    d.querySelector('.remove').addEventListener('click',()=>{teams.splice(i,1);renderScores();broadcastState();saveState();});
+    scoresEl.appendChild(d);
+  });
+}
+
+/* ===== TOOLBAR (play/projection page — no editing) ===== */
+document.getElementById('addTeam').onclick=()=>addTeam();
+document.getElementById('resetTiles').onclick=()=>{data.categories.forEach(c=>c.cells.forEach(x=>x.used=false));renderBoard();saveState();};
+document.getElementById('resetScores').onclick=()=>{teams.forEach(t=>t.score=0);renderScores();saveState();};
+document.getElementById('soundToggle').onclick=function(){soundOn=!soundOn;this.textContent='🔊 Sound: '+(soundOn?'ON':'OFF');};
+document.getElementById('newRoom').onclick=()=>{ROOM=makeCode();document.getElementById('roomCode').textContent=ROOM;buzzes=[];renderBuzzes();connectRoom();};
+
+/* ===== QR POPUP ===== */
+const qrOverlay=document.getElementById('qrOverlay');
+function playerURL(){
+  try{ return location.origin+location.pathname.replace(/index\.html?$/,'')+'player.html'; }
+  catch(e){ return 'player.html'; }
+}
+document.getElementById('showQR').onclick=()=>{
+  const holder=document.getElementById('qrHolder');
+  holder.innerHTML='';
+  const url=playerURL();
+  document.getElementById('qrUrl').textContent=url;
+  document.getElementById('qrRoom').textContent=ROOM;
+  try{
+    new QRCode(holder,{text:url,width:300,height:300,correctLevel:QRCode.CorrectLevel.M});
+  }catch(e){
+    holder.innerHTML='<div style="color:#a33;font-family:Oswald;padding:30px;">QR library didn\'t load (no internet?). Students can still go to the URL below and type the code.</div>';
+  }
+  qrOverlay.classList.add('show');
+};
+document.getElementById('qrClose').onclick=()=>qrOverlay.classList.remove('show');
+qrOverlay.addEventListener('click',e=>{if(e.target===qrOverlay)qrOverlay.classList.remove('show');});
+
+/* ===== INIT ===== */
+document.getElementById('roomCode').textContent=ROOM;
+try{document.getElementById('joinUrl').textContent=location.origin+location.pathname.replace(/index\.html?$/,'')+'player.html';}catch(e){}
+const restored=loadState();
+if(!restored){ for(let i=0;i<DEFAULT_TEAMS;i++) teams.push({name:'Team '+(i+1),score:0,logo:null}); }
+renderScores();
+renderBoard();updateArmedUI();
+connectRoom();
+
+// Question-bank bar: enable if Supabase is configured, else show a hint
+if(configured){ bankRefreshList(); }
+else{ setBankStatus('Add Supabase keys in config.js to sync questions across computers',true); }
+</script>
+</body>
+</html>

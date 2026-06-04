@@ -248,23 +248,28 @@
 
   /* Final Jeopardy finale plate (present mode) */
   .present-final-plate{display:none;}
-  body.present-mode .present-final-plate{display:flex;flex-direction:column;align-items:center;gap:12px;
-    position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:40;
-    padding:20px 34px;border-radius:16px;border:3px solid var(--jep-gold);
+  body.present-mode .present-final-plate{display:flex;flex-direction:column;align-items:center;gap:14px;
+    position:fixed;top:50%;left:calc(50% - clamp(90px,8vw,135px));transform:translate(-50%,-50%);z-index:40;
+    padding:26px 44px;border-radius:18px;border:3px solid var(--jep-gold);
     background:radial-gradient(ellipse 140% 130% at 50% 0%,#221149 0%,#140a30 70%,#0a0620 100%);
-    box-shadow:0 0 0 1px rgba(0,0,0,.5),0 18px 50px rgba(0,0,0,.6),0 0 50px rgba(142,43,196,.5),inset 0 1px 0 rgba(255,255,255,.14);
-    animation:plateIn .35s cubic-bezier(.2,.9,.3,1.1);}
-  @keyframes plateIn{from{transform:translateX(-50%) translateY(14px);opacity:0;}to{transform:translateX(-50%) translateY(0);opacity:1;}}
+    box-shadow:0 0 0 1px rgba(0,0,0,.5),0 24px 70px rgba(0,0,0,.7),0 0 70px rgba(142,43,196,.6),inset 0 1px 0 rgba(255,255,255,.14);
+    animation:plateIn .4s cubic-bezier(.2,.9,.3,1.1);}
+  @keyframes plateIn{from{transform:translate(-50%,-46%) scale(.94);opacity:0;}to{transform:translate(-50%,-50%) scale(1);opacity:1;}}
   body.present-mode .present-final-plate .pf-caption{font-family:'Saira Condensed','Oswald',sans-serif;font-weight:700;
-    font-size:clamp(15px,1.8vw,22px);letter-spacing:2px;text-transform:uppercase;color:var(--jep-gold-bright);
+    font-size:clamp(16px,2vw,26px);letter-spacing:2px;text-transform:uppercase;color:var(--jep-gold-bright);
     text-shadow:0 2px 0 rgba(0,0,0,.6);text-align:center;}
   body.present-mode .present-final{display:block;position:static;transform:none;max-width:none;
     background:linear-gradient(180deg,#a23bdc,#6a1bb0);color:#fff;border:2px solid var(--jep-gold);
     box-shadow:0 4px 16px rgba(94,23,153,.6),inset 0 1px 0 rgba(255,255,255,.3);
-    font-family:'Anton',sans-serif;letter-spacing:1px;font-size:clamp(20px,2.6vw,34px);padding:14px 40px;border-radius:12px;
+    font-family:'Anton',sans-serif;letter-spacing:1px;font-size:clamp(22px,2.8vw,38px);padding:16px 48px;border-radius:12px;
     text-shadow:0 2px 0 rgba(0,0,0,.45);}
   body.present-mode .present-final:hover{filter:brightness(1.12);transform:translateY(-2px);
     box-shadow:0 8px 24px rgba(94,23,153,.7),0 0 24px rgba(247,211,107,.35),inset 0 1px 0 rgba(255,255,255,.4);}
+  /* dim the spent board behind the finale plate so the plate is the focus */
+  body.present-mode .board,
+  body.present-mode .cat{transition:opacity .4s ease,filter .4s ease;}
+  body.present-mode.final-ready .board{opacity:.28;filter:saturate(.6) blur(1px);pointer-events:none;}
+  body.present-mode.final-ready .present-subtitle{opacity:.4;}
 </style>
 </head>
 <body>
@@ -631,11 +636,14 @@ function boardAllUsed(){
   return data.categories.every(c=>c.cells.every(x=>x.used));
 }
 function updateFinalAvailability(){
-  const show = editMode || boardAllUsed();
+  const allUsed = boardAllUsed();
+  const show = editMode || allUsed;
   const fb=document.getElementById('finalJBtn');
   const pp=document.getElementById('presentFinalPlate');
   if(fb) fb.style.display = show ? '' : 'none';
   if(pp) pp.style.display = show ? '' : 'none';
+  // dim the board behind the finale plate only when the board is genuinely complete
+  document.body.classList.toggle('final-ready', allUsed && !editMode);
 }
 
 /* ===== MODAL ===== */

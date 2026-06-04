@@ -960,7 +960,8 @@ function renderPresentStrip(){
   if(!strip) return;
   strip.innerHTML='';
   const maxScore=teams.length?Math.max(...teams.map(t=>t.score)):0;
-  teams.forEach(tm=>{
+  const ordered=teams.map((t,i)=>({t,i})).sort((a,b)=> b.t.score-a.t.score || a.i-b.i).map(x=>x.t);
+  ordered.forEach(tm=>{
     const lead=(tm.score===maxScore&&maxScore>0)?' lead':'';
     const neg=tm.score<0?' neg':'';
     const logo=tm.logo?`<img class="plogo" src="${tm.logo}" alt="">`:'';
@@ -968,8 +969,8 @@ function renderPresentStrip(){
     d.innerHTML=`${logo}<div class="pinfo"><span class="pname">${tm.name.replace(/</g,'&lt;')}</span>
       <span class="pscore${neg}">${tm.score<0?'-$'+Math.abs(tm.score):'$'+tm.score}</span></div>
       <div class="padj"><button class="pminus" title="-100">–</button><button class="pplus" title="+100">+</button></div>`;
-    d.querySelector('.pplus').onclick=()=>{tm.score+=100;popScore(tm.name);renderScores();saveState();};
-    d.querySelector('.pminus').onclick=()=>{tm.score-=100;popScore(tm.name);renderScores();saveState();};
+    d.querySelector('.pplus').onclick=()=>{tm.score+=100;popScore(tm.name);playRight();renderScores();saveState();};
+    d.querySelector('.pminus').onclick=()=>{tm.score-=100;popScore(tm.name);playWrong();renderScores();saveState();};
     strip.appendChild(d);
   });
 }

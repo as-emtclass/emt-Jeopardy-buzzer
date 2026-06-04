@@ -115,7 +115,7 @@ const configured=(typeof SUPABASE_URL!=='undefined'&&SUPABASE_URL&&!SUPABASE_URL
   typeof SUPABASE_ANON_KEY!=='undefined'&&SUPABASE_ANON_KEY&&!SUPABASE_ANON_KEY.includes('YOUR_'));
 
 let supa=null, channel=null, ROOM=null, myTeam=null, armed=false, hasBuzzed=false, teamList=[];
-let finalMode=false, myScore=0, wagerLocked=false, teamScores={};
+let finalMode=false, myScore=0, wagerLocked=false, teamScores={}, claimedSet=[];
 
 const $=id=>document.getElementById(id);
 function show(screen){['screenCode','screenTeam','screenBuzz','screenWager'].forEach(s=>$(s).classList.toggle('active',s===screen));}
@@ -146,6 +146,7 @@ function connect(){
   channel.on('broadcast',{event:'state'},({payload})=>{
     teamList=payload.teams||[];
     teamScores=payload.scores||{};
+    claimedSet=payload.claimed||[];
     renderTeams();
     const wasArmed=armed; armed=!!payload.armed;
     const wasFinal=finalMode; finalMode=!!payload.final;
@@ -189,15 +190,25 @@ function renderTeams(){
   }
   if(!teamList.length){g.innerHTML='<div style="grid-column:1/3;color:#9fb0ff;font-size:14px;">Waiting for host to set up teams…</div>';return;}
   teamList.forEach(name=>{
+    const taken=claimedSet.includes(name);
     const b=document.createElement('button');b.textContent=name;
-    b.onclick=()=>{
-      myTeam=name;
-      $('myTeam').textContent=name;
-      $('myTeamW').textContent=name;
-      myScore=(name in teamScores)?teamScores[name]:0;
-      tick(800);
-      if(finalMode){ routeFinal(); } else { show('screenBuzz'); updateBuzzUI(); }
-    };
+    if(taken){
+      b.disabled=true;
+      b.style.opacity='.4';
+      b.style.cursor='default';
+      b.innerHTML=name.replace(/</g,'&lt;')+' <span style="font-size:11px;color:#ff9b9b;">taken</span>';
+    }else{
+      b.onclick=()=>{
+        if(claimedSet.includes(name)){ renderTeams(); return; } // someone grabbed it first
+        myTeam=name;
+        $('myTeam').textContent=name;
+        $('myTeamW').textContent=name;
+        myScore=(name in teamScores)?teamScores[name]:0;
+        tick(800);
+        if(channel) channel.send({type:'broadcast',event:'claim',payload:{team:name}}); // tell host it's taken
+        if(finalMode){ routeFinal(); } else { show('screenBuzz'); updateBuzzUI(); }
+      };
+    }
     g.appendChild(b);
   });
 }

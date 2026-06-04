@@ -98,6 +98,19 @@
   .card .content[contenteditable]:focus{background:rgba(255,255,255,.08);}
   .card .label{font-size:11px;letter-spacing:3px;color:#9fb0ff;text-transform:uppercase;margin:16px 0 6px;}
   .card .controls{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px;}
+  /* In-clue scoring panel */
+  .clue-score{margin-top:18px;display:flex;flex-direction:column;gap:7px;}
+  .clue-score .cs-row{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.25);border:1px solid #2b3fc7;border-radius:8px;padding:7px 10px;}
+  .clue-score .cs-row.done{opacity:.45;}
+  .clue-score .cs-rank{font-family:'Anton';font-size:18px;color:var(--jep-gold-bright);min-width:24px;text-align:center;}
+  .clue-score .cs-logo{width:26px;height:26px;border-radius:5px;object-fit:cover;background:#02063a;border:1px solid #2b3fc7;}
+  .clue-score .cs-name{flex:1;font-family:'Oswald';font-weight:600;font-size:16px;text-align:left;text-transform:uppercase;letter-spacing:.5px;}
+  .clue-score .cs-btn{font-family:'Oswald';font-weight:700;font-size:14px;border:none;border-radius:6px;padding:7px 12px;cursor:pointer;}
+  .clue-score .cs-right{background:#1f7a3a;color:#fff;}
+  .clue-score .cs-right:hover{background:#27a04c;}
+  .clue-score .cs-wrong{background:#7a2230;color:#fff;}
+  .clue-score .cs-wrong:hover{background:#a33;}
+  .clue-score .cs-empty{color:#9fb0ff;font-family:'Oswald';font-size:14px;text-align:center;padding:4px;}
   .editnote{position:absolute;top:10px;left:14px;font-size:11px;color:#9fb0ff;letter-spacing:1px;}
   .closeX{position:absolute;top:8px;right:14px;background:none;border:none;color:#fff;font-size:24px;cursor:pointer;}
   .hint{text-align:center;color:#7c8bd0;font-size:12px;letter-spacing:1px;margin-top:22px;}
@@ -224,6 +237,7 @@
     <div class="content" id="mQuestion">Clue text…</div>
     <div class="label">Answer</div>
     <div class="content" id="mAnswer" style="font-size:clamp(16px,2.6vw,26px);color:var(--jep-gold-bright);">Answer text…</div>
+    <div class="clue-score" id="clueScore"></div>
     <div class="controls">
       <button class="btn" id="revealBtn">Reveal Answer</button>
       <button class="btn secondary" id="markDone">Close &amp; Mark Used</button>
@@ -262,6 +276,7 @@ function connectRoom(){
     if(buzzes.find(b=>b.team===payload.team)) return; // one buzz per team per round
     buzzes.push({team:payload.team, t:performance.now()});
     renderBuzzes(); playBuzz();
+    if(overlay.classList.contains('show')) renderClueScore();
   });
   channel.on('broadcast',{event:'join'},({payload})=>{
     // optional: could track joins; harmless to ignore
@@ -292,8 +307,17 @@ function playThemeIntro(){if(!soundOn)return;const n=[392,330,392,523,392,330,29
 function playReveal(){if(!soundOn)return;beep(660,0,0.12,'square',0.2);beep(880,0.1,0.18,'square',0.2);}
 function playSelect(){if(!soundOn)return;beep(520,0,0.08);beep(780,0.05,0.12);}
 function playBuzz(){if(!soundOn)return;beep(440,0,0.18,'sawtooth',0.3);beep(330,0.08,0.2,'sawtooth',0.25);}
-function playRight(){if(!soundOn)return;beep(523,0,0.12);beep(659,0.12,0.12);beep(784,0.24,0.2);}
-function playWrong(){if(!soundOn)return;beep(200,0,0.3,'sawtooth',0.25);beep(150,0.15,0.35,'sawtooth',0.22);}
+function playRight(){if(!soundOn)return;
+  // Bright triumphant ascending fanfare (C-E-G-high C) with octave doubling
+  const n=[523,659,784,1047];let t=0;
+  n.forEach((f,i)=>{ beep(f,t,0.18,'square',0.28); beep(f*2,t,0.14,'triangle',0.12); t+=0.10; });
+  beep(1047,0.40,0.32,'square',0.3); beep(1568,0.40,0.30,'triangle',0.16); // final accent chord
+}
+function playWrong(){if(!soundOn)return;
+  // Harsh game-show "EHHH" buzzer: two detuned low sawtooths, double blast
+  beep(160,0,0.32,'sawtooth',0.34); beep(150,0,0.32,'square',0.2);
+  beep(160,0.20,0.42,'sawtooth',0.34); beep(150,0.20,0.42,'square',0.2);
+}
 
 /* ===== DATA ===== */
 // Default EMT board (your question/answer key). Editable in-game; restored by "New Quarter".
@@ -482,11 +506,16 @@ function renderBoard(){
 
 /* ===== MODAL ===== */
 const overlay=document.getElementById('overlay'),mValue=document.getElementById('mValue'),
-  mQ=document.getElementById('mQuestion'),mA=document.getElementById('mAnswer'),editnote=document.getElementById('editnote');
+  mQ=document.getElementById('mQuestion'),mA=document.getElementById('mAnswer'),editnote=document.getElementById('editnote'),
+  clueScoreEl=document.getElementById('clueScore');
+let activeValue=0;
+let scoredTeams=[];
+
 function openClue(ci,ri,tileEl){
   const cell=data.categories[ci].cells[ri];
   if(cell.used&&!editMode)return;
   activeCell={ci,ri,tileEl};
+  activeValue=VALUES[ri]; scoredTeams=[];
   mValue.textContent='$'+VALUES[ri];mQ.textContent=cell.question;mA.textContent=cell.answer;
   mA.style.display=editMode?'flex':'none';
   if(editMode){editnote.style.display='block';mQ.contentEditable=true;mA.contentEditable=true;
@@ -495,6 +524,7 @@ function openClue(ci,ri,tileEl){
     playSelect();setTimeout(playThemeIntro,150);
     armBuzzers(); // auto-arm when a clue opens
   }
+  renderClueScore();
   overlay.classList.add('show');
 }
 document.getElementById('revealBtn').onclick=()=>{mA.style.display='flex';playReveal();};
@@ -507,6 +537,7 @@ function openFinal(){
   const fj=data.finalJ;
   if(fj.used&&!editMode){ if(!confirm('Final Jeopardy was already played. Open it again?'))return; }
   activeCell={isFinal:true};
+  activeValue=0; scoredTeams=[];
   mValue.textContent='★ FINAL JEOPARDY';
   mQ.textContent=fj.question; mA.textContent=fj.answer;
   mA.style.display=editMode?'flex':'none';
@@ -514,9 +545,62 @@ function openFinal(){
     mQ.oninput=()=>{fj.question=mQ.textContent;saveState();};mA.oninput=()=>{fj.answer=mA.textContent;saveState();};}
   else{editnote.style.display='none';mQ.contentEditable=false;mA.contentEditable=false;
     playSelect();setTimeout(playThemeIntro,150);armBuzzers();}
+  renderClueScore();
   overlay.classList.add('show');
 }
 document.getElementById('finalJBtn').onclick=openFinal;
+
+function renderClueScore(){
+  if(!clueScoreEl) return;
+  clueScoreEl.innerHTML='';
+  if(editMode){ return; }
+  const pending=buzzes.filter(b=>!scoredTeams.includes(b.team));
+  if(activeValue<=0){
+    if(buzzes.length){
+      const note=document.createElement('div');note.className='cs-empty';
+      note.textContent='Final Jeopardy — award points using the +/− buttons on team cards.';
+      clueScoreEl.appendChild(note);
+    }
+    return;
+  }
+  if(!buzzes.length){
+    const note=document.createElement('div');note.className='cs-empty';
+    note.textContent='Waiting for a team to buzz in…';
+    clueScoreEl.appendChild(note);
+    return;
+  }
+  if(!pending.length){
+    const note=document.createElement('div');note.className='cs-empty';
+    note.textContent='All buzzed teams answered. Close the clue.';
+    clueScoreEl.appendChild(note);
+    return;
+  }
+  pending.forEach(b=>{
+    const rank=buzzes.findIndex(x=>x.team===b.team)+1;
+    const tm=teams.find(t=>t.name===b.team);
+    const logo=tm&&tm.logo?`<img class="cs-logo" src="${tm.logo}" alt="">`:'';
+    const row=document.createElement('div');row.className='cs-row';
+    row.innerHTML=`<span class="cs-rank">${rank}</span>${logo}<span class="cs-name">${b.team.replace(/</g,'&lt;')}</span>
+      <button class="cs-btn cs-right">✓ +$${activeValue}</button>
+      <button class="cs-btn cs-wrong">✗ −$${activeValue}</button>`;
+    row.querySelector('.cs-right').onclick=()=>scoreTeam(b.team,true);
+    row.querySelector('.cs-wrong').onclick=()=>scoreTeam(b.team,false);
+    clueScoreEl.appendChild(row);
+  });
+}
+
+function scoreTeam(teamName,correct){
+  const tm=teams.find(t=>t.name===teamName);
+  if(!tm) return;
+  if(correct){
+    tm.score+=activeValue; renderScores(); saveState(); playRight();
+    closeModal(true);
+  }else{
+    tm.score-=activeValue; renderScores(); saveState(); playWrong();
+    scoredTeams.push(teamName);
+    renderClueScore();
+  }
+}
 
 function closeModal(markUsed){
   if(markUsed&&activeCell&&!editMode){
@@ -525,6 +609,7 @@ function closeModal(markUsed){
     saveState();
   }
   overlay.classList.remove('show');activeCell=null;
+  activeValue=0; scoredTeams=[];
   disarmBuzzers();
 }
 

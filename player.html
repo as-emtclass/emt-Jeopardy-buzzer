@@ -226,46 +226,13 @@ function renderTeams(){
 /* Screen 3: buzz */
 const buzzBtn=$('buzzBtn');
 buzzBtn.onclick=()=>{
-  if(!channel||!myTeam) return;
-  if(hasBuzzed) return;                       // already in this round
-  const now=performance.now();
-  if(now<penaltyUntil) return;                // serving a penalty lockout
-
-  if(armed){
-    // legitimate buzz
-    hasBuzzed=true; tick(440);
-    channel.send({type:'broadcast',event:'buzz',payload:{team:myTeam}});
-    updateBuzzUI();
-    return;
-  }
-
-  // Tapped before the host armed — jumping the gun
-  if(!earlyWarned){
-    // first early tap: gentle warning, no penalty
-    earlyWarned=true; tick(240);
-    $('buzzState').textContent='⚠ Too early! Wait for the host';
-    $('buzzState').className='state locked';
-    buzzBtn.classList.add('shake');
-    setTimeout(()=>buzzBtn.classList.remove('shake'),350);
-  }else{
-    // kept mashing: 0.5s penalty lockout (carries past the arm so mashing can't win)
-    penaltyUntil=now+500; tick(180);
-    buzzBtn.disabled=true; buzzBtn.textContent='LOCKED';
-    $('buzzState').textContent='Too early — buzzer locked briefly';
-    $('buzzState').className='state locked';
-    buzzBtn.classList.add('shake');
-    setTimeout(()=>buzzBtn.classList.remove('shake'),350);
-    setTimeout(()=>{ if(performance.now()>=penaltyUntil){ updateBuzzUI(); } }, 520);
-  }
+  if(!armed||hasBuzzed||!channel||!myTeam)return;
+  hasBuzzed=true;tick(440);
+  channel.send({type:'broadcast',event:'buzz',payload:{team:myTeam}});
+  updateBuzzUI();
 };
 function updateBuzzUI(){
   if(!myTeam)return;
-  const now=performance.now();
-  if(now<penaltyUntil){
-    buzzBtn.disabled=true;buzzBtn.classList.remove('waiting');buzzBtn.textContent='LOCKED';
-    $('buzzState').textContent='Too early — buzzer locked briefly';$('buzzState').className='state locked';$('rankMsg').textContent='';
-    return;
-  }
   if(armed&&!hasBuzzed){
     buzzBtn.disabled=false;buzzBtn.classList.remove('waiting');buzzBtn.textContent='BUZZ';
     $('buzzState').textContent='● Buzzers open!';$('buzzState').className='state armed';$('rankMsg').textContent='';
@@ -273,8 +240,7 @@ function updateBuzzUI(){
     buzzBtn.disabled=true;buzzBtn.classList.remove('waiting');buzzBtn.textContent='SENT';
     $('buzzState').textContent='Buzz sent — watch the host screen';$('buzzState').className='state locked';
   }else{
-    // not armed yet: keep the button tappable (not disabled) so we can warn on early taps
-    buzzBtn.disabled=false;buzzBtn.classList.add('waiting');buzzBtn.textContent='WAIT';
+    buzzBtn.disabled=true;buzzBtn.classList.remove('waiting');buzzBtn.textContent='WAIT';
     $('buzzState').textContent='Waiting for host…';$('buzzState').className='state';$('rankMsg').textContent='';
   }
 }

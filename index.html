@@ -475,7 +475,7 @@ function broadcastState(){
   const scores={}; teams.forEach(t=>{scores[t.name]=t.score;});
   const claimed=Object.keys(claimedTeams).filter(n=>claimedTeams[n]);
   channel.send({type:'broadcast', event:'state', payload:{
-    teams: teams.map(t=>t.name), armed, final:fjBroadcastFinal, scores, claimed
+    teams: teams.map(t=>t.name), armed, round:roundN, final:fjBroadcastFinal, scores, claimed
   }});
 }
 function releaseTeams(){
@@ -513,52 +513,52 @@ function playWrong(){if(!soundOn)return;
 // Default EMT board (your question/answer key). Editable in-game; restored by "New Quarter".
 function freshData(){return{
   categories:[
-    {title:"BREATHE EASY (OR NOT)",cells:[
-      {question:"What is the ventilation rate for an adult with a pulse who requires BVM ventilations?",answer:"1 breath every 6 seconds (10 breaths per minute).",used:false},
-      {question:"What abnormal breath sounds indicate fluid in the alveoli and are commonly heard in CHF or pneumonia?",answer:"Crackles (rales).",used:false},
-      {question:"Name common signs and symptoms of emphysema.",answer:"Dyspnea, pursed-lip breathing, prolonged expiration, barrel chest, diminished breath sounds, and accessory muscle use.",used:false},
-      {question:"What is the difference between respiratory distress and respiratory failure?",answer:"Respiratory distress: patient is still compensating. Respiratory failure: breathing is inadequate to maintain oxygenation or ventilation.",used:false},
-      {question:"How does treatment differ between respiratory distress and respiratory failure?",answer:"Respiratory distress: give supplemental oxygen. Respiratory failure: provide assisted ventilations with a BVM.",used:false}
+    {title:"CATEGORY 1",cells:[
+      {question:"Edit me — add your question (use the Admin page, Edit Board: ON).",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false}
     ]},
-    {title:"THIS WON'T BUFF OUT",cells:[
-      {question:"What is the most common preventable cause of death in trauma patients?",answer:"Uncontrolled hemorrhage leading to hemorrhagic shock.",used:false},
-      {question:"Name two signs of a basilar skull fracture that contraindicate NPA placement.",answer:"Raccoon eyes and Battle's sign.",used:false},
-      {question:"What condition occurs when air escapes from the lungs into the subcutaneous tissue, causing a crackling sensation on palpation?",answer:"Subcutaneous emphysema.",used:false},
-      {question:"A cervical spine injury causes breathing difficulty. Which spinal levels control the diaphragm?",answer:"C3–C5, which control the phrenic nerve and diaphragm.",used:false},
-      {question:"Widening pulse pressure, bradycardia, and irregular respirations indicate what condition?",answer:"Cushing's triad, a sign of increased intracranial pressure.",used:false}
+    {title:"CATEGORY 2",cells:[
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false}
     ]},
-    {title:"BABY ON BOARD",cells:[
-      {question:"What does APGAR stand for and when is it assessed?",answer:"Appearance, Pulse, Grimace, Activity, Respiration. Assessed at 1 minute and 5 minutes after birth.",used:false},
-      {question:"What are normal heart and respiratory rates for a newborn?",answer:"HR 120–160 bpm; RR 30–60 breaths per minute.",used:false},
-      {question:"What pregnancy complication is characterized by hypertension, protein in urine, and swelling?",answer:"Preeclampsia.",used:false},
-      {question:"A pregnant patient has abdominal pain, vaginal bleeding, and a rigid uterus. What condition is suspected?",answer:"Abruptio placentae — premature separation of the placenta causing hemorrhage and fetal hypoxia.",used:false},
-      {question:"What condition occurs when the placenta covers the cervix and causes painless vaginal bleeding?",answer:"Placenta previa.",used:false}
+    {title:"CATEGORY 3",cells:[
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false}
     ]},
-    {title:"\"SIR, THIS IS AN AMBULANCE\"",cells:[
-      {question:"What is the first priority when arriving at an emergency scene?",answer:"Scene safety.",used:false},
-      {question:"What term describes operating an ambulance with regard for the safety of all others?",answer:"Driving with due regard.",used:false},
-      {question:"What federal law protects patient medical privacy?",answer:"HIPAA — Health Insurance Portability and Accountability Act.",used:false},
-      {question:"What is the purpose of triage in a mass casualty incident and what system is commonly used?",answer:"To prioritize patients by severity to maximize survival. Common system: START triage.",used:false},
-      {question:"What are the four national levels of EMS providers?",answer:"EMR, EMT, Advanced EMT, Paramedic.",used:false}
+    {title:"CATEGORY 4",cells:[
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false}
     ]},
-    {title:"\"WEBMD SAYS I'M DYING\"",cells:[
-      {question:"What are classic signs of appendicitis?",answer:"Periumbilical pain migrating to the RLQ, nausea, fever, and rebound tenderness.",used:false},
-      {question:"Name three classic findings in diabetic ketoacidosis.",answer:"Kussmaul respirations, fruity breath odor, and altered mental status.",used:false},
-      {question:"What distinguishes anaphylaxis from a mild allergic reaction?",answer:"Airway compromise, hypotension, or shock.",used:false},
-      {question:"Which infectious disease causes chronic cough, weight loss, night sweats, and requires N95 precautions?",answer:"Tuberculosis (TB).",used:false},
-      {question:"Sudden abdominal pain radiating to the back with a pulsating abdominal mass suggests what condition?",answer:"Abdominal aortic aneurysm (AAA). Minimize movement, treat for shock, and transport rapidly.",used:false}
+    {title:"CATEGORY 5",cells:[
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false}
     ]},
-    {title:"\"WE'RE OUT OF SERVICE AFTER THIS, RIGHT?\"",cells:[
-      {question:"What is the poison control phone number?",answer:"1-800-222-1222.",used:false},
-      {question:"At approximately what age do children no longer need torso padding for neutral airway positioning?",answer:"About 8 years old.",used:false},
-      {question:"What is the most common cause of cardiac arrest in pediatric patients?",answer:"Respiratory failure.",used:false},
-      {question:"What condition causes paradoxical chest movement due to multiple rib fractures?",answer:"Flail chest.",used:false},
-      {question:"What condition occurs when the heart cannot pump effectively, causing fluid buildup in the lungs and body?",answer:"Congestive heart failure (CHF).",used:false}
+    {title:"CATEGORY 6",cells:[
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false},
+      {question:"Edit me — add your question.",answer:"Add your answer here.",used:false}
     ]}
   ],
   finalJ:{
-    question:"A 22-year-old male is stabbed in the chest. He is diaphoretic with JVD, muffled heart sounds, hypotension (BP 88/60), and clear bilateral breath sounds. What life-threatening condition is most likely occurring?",
-    answer:"What is cardiac tamponade?",
+    question:"Edit me — add your Final Jeopardy question.",
+    answer:"Add your Final Jeopardy answer here.",
     used:false
   }
 };}
@@ -915,7 +915,8 @@ function closeModal(markUsed){
 /* ===== BUZZER PANEL ===== */
 const armedState=document.getElementById('armedState'),armBtn=document.getElementById('armBtn'),
   buzzlist=document.getElementById('buzzlist'),emptyNote=document.getElementById('emptyNote');
-function armBuzzers(){armed=true;buzzes=[];renderBuzzes();updateArmedUI();broadcastState();}
+let roundN=0;   // increments every arm so phones reset even if they missed a disarm
+function armBuzzers(){armed=true;roundN++;buzzes=[];renderBuzzes();updateArmedUI();broadcastState();}
 function disarmBuzzers(){armed=false;updateArmedUI();broadcastState();}
 function updateArmedUI(){
   if(armed){armedState.textContent='● ARMED — waiting for buzzes';armedState.className='armed-state armed';armBtn.textContent='Disarm';}

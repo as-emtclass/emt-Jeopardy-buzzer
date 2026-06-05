@@ -121,6 +121,7 @@ const configured=(typeof SUPABASE_URL!=='undefined'&&SUPABASE_URL&&!SUPABASE_URL
 let supa=null, channel=null, ROOM=null, myTeam=null, armed=false, hasBuzzed=false, teamList=[];
 let finalMode=false, myScore=0, wagerLocked=false, teamScores={}, claimedSet=[];
 let earlyWarned=false, penaltyUntil=0;   // anti-spam: warned once, then 0.5s penalty lockout
+let lastRound=null;                       // last round number seen from the host
 
 const $=id=>document.getElementById(id);
 function show(screen){['screenCode','screenTeam','screenBuzz','screenWager'].forEach(s=>$(s).classList.toggle('active',s===screen));}
@@ -154,6 +155,10 @@ function connect(){
     claimedSet=payload.claimed||[];
     renderTeams();
     const wasArmed=armed; armed=!!payload.armed;
+    // Round number: every arm gets a new number, so phones reset even if they
+    // slept through the disarm (locked screens miss broadcasts).
+    const newRound=(payload.round!==undefined && payload.round!==lastRound);
+    if(payload.round!==undefined) lastRound=payload.round;
     const wasFinal=finalMode; finalMode=!!payload.final;
     if(myTeam){
       myScore=(myTeam in teamScores)?teamScores[myTeam]:myScore;
@@ -163,7 +168,7 @@ function connect(){
         routeFinal();
       }else{
         if(wasFinal){ wagerLocked=false; }  // host closed Final Jeopardy
-        if(armed&&!wasArmed){ hasBuzzed=false; earlyWarned=false; penaltyUntil=0; }  // new round: reset anti-spam
+        if((armed&&!wasArmed)||(armed&&newRound)){ hasBuzzed=false; earlyWarned=false; penaltyUntil=0; }  // new round: reset anti-spam
         updateBuzzUI();
         if($('screenWager').classList.contains('active')) show('screenBuzz');
       }

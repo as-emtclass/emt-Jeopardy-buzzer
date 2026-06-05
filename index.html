@@ -193,6 +193,20 @@
   .qr-code b{font-family:'Anton';font-size:30px;letter-spacing:4px;color:#060ce9;}
 
   /* ===== PRESENT MODE ===== */
+  /* Login gate (host screen requires sign-in so students can't see questions) */
+  #loginGate{position:fixed;inset:0;background:radial-gradient(ellipse at top,#0a1568,#02063a 60%,#000423);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;}
+  #loginGate.hidden{display:none;}
+  .login-card{background:linear-gradient(180deg,#0a1474,#040a40);border:3px solid var(--jep-gold);border-radius:12px;padding:30px 26px;width:min(380px,92vw);text-align:center;box-shadow:0 0 40px rgba(6,12,233,.5);}
+  .login-card h2{font-family:'Anton';color:var(--jep-gold-bright);font-size:26px;letter-spacing:2px;margin-bottom:4px;}
+  .login-card .tag{font-size:12px;letter-spacing:3px;color:#9fb0ff;text-transform:uppercase;margin-bottom:18px;}
+  .login-card label{display:block;text-align:left;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9fb0ff;margin:12px 0 5px;}
+  .login-card input{width:100%;padding:12px;border-radius:8px;border:2px solid #2b3fc7;background:#02063a;color:#fff;font-family:'Oswald';font-size:16px;outline:none;}
+  .login-card input:focus{border-color:var(--jep-gold-bright);}
+  .login-card .btn{width:100%;margin-top:18px;padding:13px;font-size:15px;}
+  .login-card .gate-note{font-size:12px;color:#9fb0ff;margin-top:14px;line-height:1.5;}
+  .login-err{color:#ff7b7b;font-size:13px;margin-top:12px;min-height:16px;}
+  .admin-badge{position:fixed;top:8px;right:10px;z-index:60;background:#0a1474;border:1px solid var(--jep-gold);border-radius:6px;padding:5px 10px;font-size:12px;color:#cdd6ff;}
+  .admin-badge button{background:none;border:none;color:var(--jep-gold-bright);cursor:pointer;font-family:'Oswald';font-weight:600;font-size:12px;margin-left:8px;text-decoration:underline;}
   .exit-present{display:none;position:fixed;top:10px;right:12px;z-index:40;font-family:'Oswald';font-weight:600;
     font-size:13px;letter-spacing:1px;text-transform:uppercase;border:none;border-radius:6px;padding:8px 14px;
     color:#02063a;background:var(--jep-gold);cursor:pointer;opacity:.55;transition:opacity .15s;}
@@ -207,6 +221,7 @@
   .present-subtitle{display:none;}
   body.present-mode .present-subtitle{display:block;text-align:center;font-family:'Oswald';font-weight:600;
     font-size:clamp(12px,1.4vw,17px);letter-spacing:3px;text-transform:uppercase;color:#9fb0ff;margin-top:1px;}
+  body.present-mode .admin-badge,
   body.present-mode .room-bar,
   body.present-mode .bank-bar,
   body.present-mode .toolbar,
@@ -273,6 +288,24 @@
 </style>
 </head>
 <body>
+
+<div id="loginGate">
+  <div class="login-card">
+    <h2>HOST LOGIN</h2>
+    <div class="tag">EMT Jeopardy</div>
+    <label>Email</label>
+    <input type="email" id="loginEmail" autocomplete="username" placeholder="you@school.edu">
+    <label>Password</label>
+    <input type="password" id="loginPass" autocomplete="current-password" placeholder="••••••••">
+    <button class="btn" id="loginBtn">Sign In</button>
+    <div class="login-err" id="loginErr"></div>
+    <div class="gate-note">Students: you don't log in here — join the game on your phone at <b>/player.html</b> with the room code.</div>
+  </div>
+</div>
+
+<div class="admin-badge" id="adminBadge" style="display:none;">
+  <span id="adminEmail">host</span><button id="signOutBtn">Sign out</button>
+</div>
 
 <header>
   <h1>EMT&nbsp;JEOPARDY</h1>
@@ -1049,6 +1082,48 @@ connectRoom();
 // Question-bank bar: enable if Supabase is configured, else show a hint
 if(configured){ bankRefreshList(); }
 else{ setBankStatus('Add Supabase keys in config.js to sync questions across computers',true); }
+
+/* ===== HOST LOGIN GATE =====
+   The host screen shows every question and answer, so it requires the same
+   sign-in as the admin page. Students join on player.html (no login). */
+const loginGate=document.getElementById('loginGate');
+const loginBtn=document.getElementById('loginBtn');
+const loginErr=document.getElementById('loginErr');
+const adminBadge=document.getElementById('adminBadge');
+const adminEmail=document.getElementById('adminEmail');
+
+function showApp(session){
+  loginGate.classList.add('hidden');
+  adminBadge.style.display='block';
+  adminEmail.textContent=(session&&session.user&&session.user.email)||'host';
+}
+function showLogin(){ loginGate.classList.remove('hidden'); adminBadge.style.display='none'; }
+
+async function doLogin(){
+  loginErr.textContent='';
+  if(!configured){ loginErr.textContent='Supabase keys not set in config.js.'; return; }
+  const c=bankClient();
+  const email=document.getElementById('loginEmail').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  if(!email||!pass){ loginErr.textContent='Enter email and password.'; return; }
+  loginBtn.disabled=true; loginBtn.textContent='Signing in…';
+  const {data:res,error}=await c.auth.signInWithPassword({email,password:pass});
+  loginBtn.disabled=false; loginBtn.textContent='Sign In';
+  if(error){ loginErr.textContent=error.message||'Invalid login.'; return; }
+  showApp(res.session);
+  bankRefreshList();
+}
+loginBtn.onclick=doLogin;
+document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+document.getElementById('signOutBtn').onclick=async()=>{ const c=bankClient(); if(c) await c.auth.signOut(); showLogin(); };
+
+(async()=>{
+  if(!configured){ showLogin(); loginErr.textContent='Add Supabase keys in config.js, then run the SQL setup.'; return; }
+  const c=bankClient();
+  const {data}=await c.auth.getSession();
+  if(data&&data.session){ showApp(data.session); } else { showLogin(); }
+  c.auth.onAuthStateChange((event,session)=>{ if(session) showApp(session); else showLogin(); });
+})();
 </script>
 </body>
 </html>

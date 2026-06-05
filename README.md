@@ -19,12 +19,14 @@ emt-jeopardy-buzzer/
 
 ### The three pages
 
-- **`index.html` — Game screen.** No login. This is what you project. It can
-  **Load** any saved question bank (read-only) or use the built-in default, run
-  the buzzers, keep score, and show team logos. It cannot edit or save questions.
-- **`admin.html` — Admin screen.** Requires your email/password login. This is
-  where you edit questions and **Save / Load / Delete** banks in the cloud.
-- **`player.html` — Phone buzzer.** Unchanged; students join with the room code.
+- **`index.html` — Game screen.** Requires your email/password login (it shows
+  every question and answer, so it's gated the same as the admin page). This is
+  what you project. It can **Load** any saved question bank (read-only) or use
+  the built-in default, run the buzzers, keep score, and show team logos. It
+  cannot edit or save questions.
+- **`admin.html` — Admin screen.** Requires the same email/password login. This
+  is where you edit questions and **Save / Load / Delete** banks in the cloud.
+- **`player.html` — Phone buzzer.** No login; students join with the room code.
 
 ---
 
@@ -119,7 +121,7 @@ git push -u origin main
 
 Vercel gives you a URL like `https://emt-jeopardy-buzzer.vercel.app`.
 
-- **Game screen (project this):** `https://your-app.vercel.app/`  (`index.html`)
+- **Game screen (project this, login):** `https://your-app.vercel.app/`  (`index.html`)
 - **Admin (edit questions, login):** `https://your-app.vercel.app/admin.html`
 - **Player buzzer:** `https://your-app.vercel.app/player.html`
 
@@ -142,7 +144,8 @@ Every time you `git push`, Vercel redeploys automatically.
    remove one. **⟳** refreshes the list.
 
 **Run the game (on `index.html` — the projected screen):**
-1. Open `index.html` on the computer plugged into the projector. (No login.)
+1. Open `index.html` on the computer plugged into the projector and sign in with
+   your email/password (same login as the admin page).
 2. In the **Question Bank** bar, pick your quarter from the dropdown and click
    **Load** — or just use the built-in default board.
 3. A **Room Code** shows at the top. Read it out. Set up teams in the scoreboard:
@@ -193,6 +196,11 @@ clues, tiles, and scores. Click **New Room Code** if you want a fresh code
 - **Buzz timing** is measured when each message *arrives at the host*, ordered by
   arrival. Fair for classroom play; not a certified competition timer.
 - **Free tier** is plenty for a single classroom.
+- **Buzzes aren't tamper-proof.** Anyone who knows the 4-letter room code can, in
+  principle, send a buzz, claim, or wager as any team (the buzzer trusts the team
+  name in each message). This is fine for classroom play, but don't treat it as a
+  secure competition system. If someone misbehaves, click **New Room Code** to
+  rotate to a fresh code and read it out again.
 
 ---
 

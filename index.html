@@ -412,9 +412,14 @@ let editMode=false, soundOn=true, activeCell=null;
 let armed=false;
 let buzzes=[]; // {team, t}
 
-// Room code (short, shareable)
+// Room code (short, shareable). Persisted so a refresh/crash keeps the same
+// code and players stay connected; only "New Room Code" generates a fresh one.
 function makeCode(){ const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s=''; for(let i=0;i<4;i++) s+=a[Math.floor(Math.random()*a.length)]; return s; }
-let ROOM = makeCode();
+const ROOM_KEY='emt-jeopardy-room-v1';
+function saveRoom(){ try{ localStorage.setItem(ROOM_KEY,ROOM); }catch(e){} }
+function loadRoom(){ try{ const r=localStorage.getItem(ROOM_KEY); return (r&&/^[A-Z2-9]{4}$/.test(r))?r:null; }catch(e){ return null; } }
+let ROOM = loadRoom() || makeCode();
+saveRoom();
 
 let supa=null, channel=null;
 const configured = (typeof SUPABASE_URL!=='undefined' && SUPABASE_URL && !SUPABASE_URL.includes('YOUR_') &&
@@ -767,7 +772,7 @@ function renderFinalScore(){
 
   teams.forEach(tm=>{
     const cap=Math.max(0,tm.score);
-    const logo=tm.logo?`<img class="fj-logo" src="${tm.logo}" alt="">`:'';
+    const _l=safeLogo(tm.logo);const logo=_l?`<img class="fj-logo" src="${_l}" alt="">`:'';
     const row=document.createElement('div');row.className='fj-row'+(fjScored.includes(tm.name)?' done':'');
     if(!fjRevealed){
       const fromPhone=fjFromPhone[tm.name]?' <span style="color:#4caf50;font-size:11px;">📱 locked</span>':'';
@@ -863,7 +868,7 @@ function renderClueScore(){
   pending.forEach(b=>{
     const rank=buzzes.findIndex(x=>x.team===b.team)+1;
     const tm=teams.find(t=>t.name===b.team);
-    const logo=tm&&tm.logo?`<img class="cs-logo" src="${tm.logo}" alt="">`:'';
+    const _l=tm&&safeLogo(tm.logo);const logo=_l?`<img class="cs-logo" src="${_l}" alt="">`:'';
     const row=document.createElement('div');row.className='cs-row';
     row.innerHTML=`<span class="cs-rank">${rank}</span>${logo}<span class="cs-name">${b.team.replace(/</g,'&lt;')}</span>
       <button class="cs-btn cs-right">✓ +$${activeValue}</button>
@@ -933,7 +938,7 @@ function renderBuzzes(){
     const li=document.createElement('li');if(i===0)li.className='first';
     const gap=i===0?'0 ms':'+'+Math.round(b.t-t0)+' ms';
     const tm=teams.find(t=>t.name===b.team);
-    const logo=tm&&tm.logo?`<img class="blogo" src="${tm.logo}" alt="">`:'';
+    const _l=tm&&safeLogo(tm.logo);const logo=_l?`<img class="blogo" src="${_l}" alt="">`:'';
     li.innerHTML=`<span class="rank">${i+1}</span>${logo}<span class="who">${b.team.replace(/</g,'&lt;')}</span><span class="ms">${gap}</span>`;
     buzzlist.appendChild(li);
   });
@@ -961,12 +966,17 @@ function compressImage(file,cb){
   reader.readAsDataURL(file);
 }
 
+// Defense-in-depth: a logo is only ever a canvas-generated data:image URL.
+// Returns the URL only if it really is one, so a tampered save/broadcast can't
+// inject markup via the src attribute. Returns '' otherwise.
+function safeLogo(url){ return (typeof url==='string' && /^data:image\//.test(url)) ? url : ''; }
+
 function renderScores(){
   scoresEl.innerHTML='';
   teams.forEach((tm,i)=>{
     const d=document.createElement('div');d.className='team'+(tm.logo?' has-logo':'');const neg=tm.score<0?' neg':'';
     const popCls=(tm.name===popTeamName)?' pop':'';
-    const logoInner=tm.logo?`<img src="${tm.logo}" alt="">`:'＋ LOGO';
+    const _l=safeLogo(tm.logo);const logoInner=_l?`<img src="${_l}" alt="">`:'＋ LOGO';
     d.innerHTML=`<button class="remove" title="Remove team">×</button>
       <button class="logo-clear" title="Remove logo">⟲</button>
       <input class="name" value="${tm.name.replace(/"/g,'&quot;')}">
@@ -1005,7 +1015,7 @@ function renderPresentStrip(){
   ordered.forEach(tm=>{
     const lead=(tm.score===maxScore&&maxScore>0)?' lead':'';
     const neg=tm.score<0?' neg':'';
-    const logo=tm.logo?`<img class="plogo" src="${tm.logo}" alt="">`:'';
+    const _l=safeLogo(tm.logo);const logo=_l?`<img class="plogo" src="${_l}" alt="">`:'';
     const d=document.createElement('div');d.className='pteam'+lead;
     d.innerHTML=`${logo}<div class="pinfo"><span class="pname">${tm.name.replace(/</g,'&lt;')}</span>
       <span class="pscore${neg}">${tm.score<0?'-$'+Math.abs(tm.score):'$'+tm.score}</span></div>
@@ -1021,7 +1031,7 @@ document.getElementById('addTeam').onclick=()=>addTeam();
 document.getElementById('resetTiles').onclick=()=>{data.categories.forEach(c=>c.cells.forEach(x=>x.used=false));renderBoard();saveState();};
 document.getElementById('resetScores').onclick=()=>{teams.forEach(t=>t.score=0);renderScores();saveState();};
 document.getElementById('soundToggle').onclick=function(){soundOn=!soundOn;this.textContent='🔊 Sound: '+(soundOn?'ON':'OFF');};
-document.getElementById('newRoom').onclick=()=>{ROOM=makeCode();document.getElementById('roomCode').textContent=ROOM;buzzes=[];claimedTeams={};renderBuzzes();connectRoom();};
+document.getElementById('newRoom').onclick=()=>{ROOM=makeCode();saveRoom();document.getElementById('roomCode').textContent=ROOM;buzzes=[];claimedTeams={};renderBuzzes();connectRoom();};
 document.getElementById('releaseTeams').onclick=()=>{ releaseTeams(); document.getElementById('releaseTeams').textContent='↺ Released!'; setTimeout(()=>{document.getElementById('releaseTeams').textContent='↺ Release Teams';},1200); };
 
 /* ===== QR POPUP ===== */

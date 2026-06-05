@@ -769,7 +769,7 @@ function renderFinalScore(){
 
   teams.forEach(tm=>{
     const cap=Math.max(0,tm.score);
-    const logo=tm.logo?`<img class="fj-logo" src="${tm.logo}" alt="">`:'';
+    const _l=safeLogo(tm.logo);const logo=_l?`<img class="fj-logo" src="${_l}" alt="">`:'';
     const row=document.createElement('div');row.className='fj-row'+(fjScored.includes(tm.name)?' done':'');
     if(!fjRevealed){
       const fromPhone=fjFromPhone[tm.name]?' <span style="color:#4caf50;font-size:11px;">📱 locked</span>':'';
@@ -864,7 +864,7 @@ function renderClueScore(){
   pending.forEach(b=>{
     const rank=buzzes.findIndex(x=>x.team===b.team)+1;
     const tm=teams.find(t=>t.name===b.team);
-    const logo=tm&&tm.logo?`<img class="cs-logo" src="${tm.logo}" alt="">`:'';
+    const _l=tm&&safeLogo(tm.logo);const logo=_l?`<img class="cs-logo" src="${_l}" alt="">`:'';
     const row=document.createElement('div');row.className='cs-row';
     row.innerHTML=`<span class="cs-rank">${rank}</span>${logo}<span class="cs-name">${b.team.replace(/</g,'&lt;')}</span>
       <button class="cs-btn cs-right">✓ +$${activeValue}</button>
@@ -932,7 +932,7 @@ function renderBuzzes(){
     const li=document.createElement('li');if(i===0)li.className='first';
     const gap=i===0?'0 ms':'+'+Math.round(b.t-t0)+' ms';
     const tm=teams.find(t=>t.name===b.team);
-    const logo=tm&&tm.logo?`<img class="blogo" src="${tm.logo}" alt="">`:'';
+    const _l=tm&&safeLogo(tm.logo);const logo=_l?`<img class="blogo" src="${_l}" alt="">`:'';
     li.innerHTML=`<span class="rank">${i+1}</span>${logo}<span class="who">${b.team.replace(/</g,'&lt;')}</span><span class="ms">${gap}</span>`;
     buzzlist.appendChild(li);
   });
@@ -960,12 +960,17 @@ function compressImage(file,cb){
   reader.readAsDataURL(file);
 }
 
+// Defense-in-depth: a logo is only ever a canvas-generated data:image URL.
+// Returns the URL only if it really is one, so a tampered save/broadcast can't
+// inject markup via the src attribute. Returns '' otherwise.
+function safeLogo(url){ return (typeof url==='string' && /^data:image\//.test(url)) ? url : ''; }
+
 function renderScores(){
   scoresEl.innerHTML='';
   teams.forEach((tm,i)=>{
     const d=document.createElement('div');d.className='team'+(tm.logo?' has-logo':'');const neg=tm.score<0?' neg':'';
     const popCls=(tm.name===popTeamName)?' pop':'';
-    const logoInner=tm.logo?`<img src="${tm.logo}" alt="">`:'＋ LOGO';
+    const _l=safeLogo(tm.logo);const logoInner=_l?`<img src="${_l}" alt="">`:'＋ LOGO';
     d.innerHTML=`<button class="remove" title="Remove team">×</button>
       <button class="logo-clear" title="Remove logo">⟲</button>
       <input class="name" value="${tm.name.replace(/"/g,'&quot;')}">
@@ -1003,7 +1008,7 @@ function renderPresentStrip(){
   ordered.forEach(tm=>{
     const lead=(tm.score===maxScore&&maxScore>0)?' lead':'';
     const neg=tm.score<0?' neg':'';
-    const logo=tm.logo?`<img class="plogo" src="${tm.logo}" alt="">`:'';
+    const _l=safeLogo(tm.logo);const logo=_l?`<img class="plogo" src="${_l}" alt="">`:'';
     const d=document.createElement('div');d.className='pteam'+lead;
     d.innerHTML=`${logo}<div class="pinfo"><span class="pname">${tm.name.replace(/</g,'&lt;')}</span>
       <span class="pscore${neg}">${tm.score<0?'-$'+Math.abs(tm.score):'$'+tm.score}</span></div>
